@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../utils/api';
 
 const ROLE_REDIRECTS = {
   principal: '/principal/dashboard',
@@ -26,12 +26,13 @@ const Register = () => {
     setIsLoading(true);
 
     try {
-      const res = await axios.post('/api/auth/register', form);
+      const res = await api.post('/api/auth/register', form);
       const { token, user } = res.data;
 
       login(token, user);
       navigate(ROLE_REDIRECTS[user.role] || '/');
     } catch (err) {
+      console.error('Exact registration error:', err);
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);

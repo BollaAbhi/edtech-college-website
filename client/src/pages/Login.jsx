@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../utils/api';
 
 const ROLE_REDIRECTS = {
   principal: '/principal/dashboard',
@@ -23,12 +23,13 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const res = await axios.post('/api/auth/login', { email, password });
+      const res = await api.post('/api/auth/login', { email, password });
       const { token, user } = res.data;
 
       login(token, user);
       navigate(ROLE_REDIRECTS[user.role] || '/');
     } catch (err) {
+      console.error('Exact login error:', err);
       setError(err.response?.data?.message || 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);

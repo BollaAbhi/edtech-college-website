@@ -1,14 +1,17 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: 'https://edtech-college-website.onrender.com',
 });
 
-// Attach JWT token to every request
+// Attach JWT token to every request and normalize paths to prepend /api if missing
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  if (config.url && !config.url.startsWith('http') && !config.url.startsWith('/api') && !config.url.startsWith('api')) {
+    config.url = '/api' + (config.url.startsWith('/') ? '' : '/') + config.url;
   }
   return config;
 });
