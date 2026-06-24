@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+/client/node_modules/
+/server/node_modules/
+
+# Local env files
+.env
+/server/.env
+
+# Production build outputs
+/client/dist/
+
+# System / logs
+.gemini/
+.system_generated/
+.tempmediaStorage/
+.DS_Store
+*.log
+Thumbs.db
