@@ -1,0 +1,10 @@
+{
+  "name": "edtech-college-website",
+  "version": "1.0.0",
+  "description": "Full-stack EdTech website for college notice board, fee, and leave management.",
+  "scripts": {
+    "install-all": "npm install --prefix client && npm install --prefix server",
+    "build": "npm run install-all && npm run build --prefix client",
+    "start": "node server/index.js"
+  }
+}
