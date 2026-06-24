@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+const API_BASE_URL = 
+  import.meta.env.VITE_API_URL || 
+  "https://edtech-college-website.onrender.com";
+
 const api = axios.create({
-  baseURL: 'https://edtech-college-website.onrender.com',
+  baseURL: API_BASE_URL,
 });
 
 // Attach JWT token to every request and normalize paths to prepend /api if missing
@@ -10,8 +14,16 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  if (config.url && !config.url.startsWith('http') && !config.url.startsWith('/api') && !config.url.startsWith('api')) {
-    config.url = '/api' + (config.url.startsWith('/') ? '' : '/') + config.url;
+  
+  if (config.url && !config.url.startsWith('http')) {
+    const baseHasApi = API_BASE_URL.includes('/api');
+    const urlHasApi = config.url.startsWith('/api') || config.url.startsWith('api');
+    
+    if (!baseHasApi && !urlHasApi) {
+      config.url = '/api' + (config.url.startsWith('/') ? '' : '/') + config.url;
+    } else if (baseHasApi && urlHasApi) {
+      config.url = config.url.replace(/^\/?api/, '');
+    }
   }
   return config;
 });
