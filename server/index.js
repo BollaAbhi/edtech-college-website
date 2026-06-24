@@ -1,10 +1,21 @@
+const dns = require('dns');
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4']);
+  console.log('DNS servers configured to Google DNS');
+} catch (err) {
+  console.error('Failed to configure DNS servers:', err);
+}
+
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
+
+console.log('MONGO_URI is set:', !!process.env.MONGO_URI);
 
 // Connect to MongoDB
 connectDB();
