@@ -8,13 +8,13 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const DAY_SHORT = { Monday: 'Mon', Tuesday: 'Tue', Wednesday: 'Wed', Thursday: 'Thu', Friday: 'Fri', Saturday: 'Sat' };
 const CLASS_OPTIONS = ['8-A','8-B','9-A','9-B','10-A','10-B','11-A','11-B','11-C','12-A','12-B','12-C'];
 const DEFAULT_PERIODS = [
-  { time: '09:00 - 09:45', subject: '', staffName: '', staffId: '' },
-  { time: '09:45 - 10:30', subject: '', staffName: '', staffId: '' },
-  { time: '10:45 - 11:30', subject: '', staffName: '', staffId: '' },
-  { time: '11:30 - 12:15', subject: '', staffName: '', staffId: '' },
-  { time: '01:00 - 01:45', subject: '', staffName: '', staffId: '' },
-  { time: '01:45 - 02:30', subject: '', staffName: '', staffId: '' },
-  { time: '02:45 - 03:30', subject: '', staffName: '', staffId: '' },
+  { startTime: '09:00', endTime: '09:45', subject: '', staffName: '', staffId: '' },
+  { startTime: '09:45', endTime: '10:30', subject: '', staffName: '', staffId: '' },
+  { startTime: '10:45', endTime: '11:30', subject: '', staffName: '', staffId: '' },
+  { startTime: '11:30', endTime: '12:15', subject: '', staffName: '', staffId: '' },
+  { startTime: '13:00', endTime: '13:45', subject: '', staffName: '', staffId: '' },
+  { startTime: '13:45', endTime: '14:30', subject: '', staffName: '', staffId: '' },
+  { startTime: '14:45', endTime: '15:30', subject: '', staffName: '', staffId: '' },
 ];
 const SUBJECT_OPTIONS = [
   'Mathematics','Physics','Chemistry','Biology','English','Hindi','Computer Science',
@@ -22,9 +22,19 @@ const SUBJECT_OPTIONS = [
   'Physical Education','Library','Lab','—',
 ];
 
+// Helper: parse "HH:MM - HH:MM" into { startTime, endTime }
+const parseTimeStr = (timeStr) => {
+  const parts = timeStr.split(/[\-\u2013\u2014]/).map((t) => t.trim());
+  return { startTime: parts[0] || '09:00', endTime: parts[1] || '09:45' };
+};
+
+// Helper: build "HH:MM - HH:MM" from startTime, endTime
+const formatTimeStr = (startTime, endTime) => `${startTime} - ${endTime}`;
+
 const PrincipalTimetable = () => {
   const [selectedClass, setSelectedClass] = useState('');
   const [grid, setGrid] = useState({});
+  const [timeSlots, setTimeSlots] = useState(DEFAULT_PERIODS.map((p) => ({ startTime: p.startTime, endTime: p.endTime })));
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -44,16 +54,47 @@ const PrincipalTimetable = () => {
       const res = await api.get(`/timetable/class/${selectedClass}`);
       const tt = res.data.timetable;
       const newGrid = {};
+
+      // Detect time slots from first non-empty day
+      let detectedSlots = null;
+      for (const day of DAYS) {
+        if (tt[day] && tt[day].length > 0) {
+          detectedSlots = tt[day].map((p) => parseTimeStr(p.time));
+          break;
+        }
+      }
+
+      const slots = detectedSlots || DEFAULT_PERIODS.map((p) => ({ startTime: p.startTime, endTime: p.endTime }));
+      setTimeSlots(slots);
+
+      const periodCount = slots.length;
+
       DAYS.forEach((day) => {
         if (tt[day] && tt[day].length > 0) {
-          newGrid[day] = tt[day].map((p) => ({
-            time: p.time,
-            subject: p.subject || '',
-            staffName: p.staffName || '',
-            staffId: p.staffId || '',
-          }));
+          newGrid[day] = tt[day].map((p, idx) => {
+            const parsed = parseTimeStr(p.time);
+            return {
+              startTime: parsed.startTime,
+              endTime: parsed.endTime,
+              subject: p.subject || '',
+              staffName: p.staffName || '',
+              staffId: p.staffId || '',
+            };
+          });
+          // Pad to match slot count
+          while (newGrid[day].length < periodCount) {
+            newGrid[day].push({
+              startTime: slots[newGrid[day].length]?.startTime || '09:00',
+              endTime: slots[newGrid[day].length]?.endTime || '09:45',
+              subject: '', staffName: '', staffId: '',
+            });
+          }
         } else {
-          newGrid[day] = DEFAULT_PERIODS.map((p) => ({ ...p }));
+          newGrid[day] = slots.map((s) => ({
+            startTime: s.startTime,
+            endTime: s.endTime,
+            subject: '', staffName: '', staffId: '',
+          }));
         }
       });
       setGrid(newGrid);
@@ -63,6 +104,26 @@ const PrincipalTimetable = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Update time slot (applied uniformly across all days for that row)
+  const updateTimeSlot = (periodIdx, field, value) => {
+    setTimeSlots((prev) => {
+      const newSlots = [...prev];
+      newSlots[periodIdx] = { ...newSlots[periodIdx], [field]: value };
+      return newSlots;
+    });
+    // Sync the time into every day's period
+    setGrid((prev) => {
+      const newGrid = { ...prev };
+      for (const day of DAYS) {
+        if (newGrid[day]) {
+          newGrid[day] = [...newGrid[day]];
+          newGrid[day][periodIdx] = { ...newGrid[day][periodIdx], [field]: value };
+        }
+      }
+      return newGrid;
+    });
   };
 
   const updateCell = (day, periodIdx, field, value) => {
@@ -81,10 +142,58 @@ const PrincipalTimetable = () => {
     });
   };
 
+  // Add a new period row
+  const addPeriod = () => {
+    const last = timeSlots[timeSlots.length - 1];
+    const newStart = last?.endTime || '15:30';
+    // Calculate a default end time 45 min after start
+    const [h, m] = newStart.split(':').map(Number);
+    const endDate = new Date(2000, 0, 1, h, m + 45);
+    const newEnd = `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+
+    setTimeSlots((prev) => [...prev, { startTime: newStart, endTime: newEnd }]);
+    setGrid((prev) => {
+      const newGrid = { ...prev };
+      for (const day of DAYS) {
+        if (newGrid[day]) {
+          newGrid[day] = [...newGrid[day], { startTime: newStart, endTime: newEnd, subject: '', staffName: '', staffId: '' }];
+        }
+      }
+      return newGrid;
+    });
+  };
+
+  // Remove the last period row
+  const removePeriod = () => {
+    if (timeSlots.length <= 1) return;
+    setTimeSlots((prev) => prev.slice(0, -1));
+    setGrid((prev) => {
+      const newGrid = { ...prev };
+      for (const day of DAYS) {
+        if (newGrid[day]) {
+          newGrid[day] = newGrid[day].slice(0, -1);
+        }
+      }
+      return newGrid;
+    });
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
-      await api.post('/timetable', { class: selectedClass, timetable: grid });
+      // Build the timetable payload with formatted time strings
+      const payload = {};
+      for (const day of DAYS) {
+        if (grid[day]) {
+          payload[day] = grid[day].map((p, idx) => ({
+            time: formatTimeStr(timeSlots[idx]?.startTime || p.startTime, timeSlots[idx]?.endTime || p.endTime),
+            subject: p.subject,
+            staffName: p.staffName,
+            staffId: p.staffId || '',
+          }));
+        }
+      }
+      await api.post('/timetable', { class: selectedClass, timetable: payload });
       showToast(`Timetable saved for ${selectedClass}.`);
     } catch (err) {
       showToast(err.response?.data?.message || 'Failed to save.', 'error');
@@ -126,22 +235,59 @@ const PrincipalTimetable = () => {
           {/* Grid editor */}
           {fetched && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+              {/* Period controls */}
+              <div className="px-6 py-3 border-b border-slate-800 flex items-center justify-between">
+                <p className="text-xs text-slate-400">
+                  <span className="text-violet-400 font-semibold">{timeSlots.length}</span> periods configured
+                </p>
+                <div className="flex items-center gap-2">
+                  <button onClick={removePeriod} disabled={timeSlots.length <= 1}
+                    className="px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                    − Remove Period
+                  </button>
+                  <button onClick={addPeriod}
+                    className="px-3 py-1.5 text-xs font-medium text-violet-300 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/20 rounded-lg transition-all">
+                    + Add Period
+                  </button>
+                </div>
+              </div>
+
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px]">
+                <table className="w-full min-w-[1000px]">
                   <thead>
                     <tr className="border-b border-slate-800">
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-28 sticky left-0 bg-slate-900 z-10">Period</th>
+                      <th className="text-left px-3 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider w-56 sticky left-0 bg-slate-900 z-10">
+                        Period / Time
+                      </th>
                       {DAYS.map((d) => (
                         <th key={d} className="text-center px-3 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">{DAY_SHORT[d]}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {DEFAULT_PERIODS.map((_, pi) => (
+                    {timeSlots.map((slot, pi) => (
                       <tr key={pi} className="border-b border-slate-800/50">
-                        <td className="px-4 py-3 sticky left-0 bg-slate-900 z-10">
-                          <div className="text-xs font-medium text-slate-500">P{pi + 1}</div>
-                          <div className="text-[11px] text-slate-600">{grid[DAYS[0]]?.[pi]?.time || DEFAULT_PERIODS[pi].time}</div>
+                        <td className="px-3 py-3 sticky left-0 bg-slate-900 z-10">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-violet-400 bg-violet-500/10 px-2 py-1 rounded-lg min-w-[32px] text-center">
+                              P{pi + 1}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="time"
+                                value={slot.startTime}
+                                onChange={(e) => updateTimeSlot(pi, 'startTime', e.target.value)}
+                                className="px-2 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all w-[100px]"
+                              />
+                              <span className="text-slate-600 text-xs">to</span>
+                              <input
+                                type="time"
+                                value={slot.endTime}
+                                onChange={(e) => updateTimeSlot(pi, 'endTime', e.target.value)}
+                                className="px-2 py-1.5 text-xs bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-violet-500 transition-all w-[100px]"
+                              />
+                            </div>
+                          </div>
                         </td>
                         {DAYS.map((day) => {
                           const cell = grid[day]?.[pi] || { subject: '', staffId: '' };
@@ -181,7 +327,7 @@ const PrincipalTimetable = () => {
               {/* Save */}
               <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between">
                 <p className="text-xs text-slate-500">
-                  Editing timetable for <span className="text-white font-medium">{selectedClass}</span> · {DEFAULT_PERIODS.length} periods × {DAYS.length} days
+                  Editing timetable for <span className="text-white font-medium">{selectedClass}</span> · {timeSlots.length} periods × {DAYS.length} days
                 </p>
                 <button onClick={handleSave} disabled={saving}
                   className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 rounded-xl shadow-lg shadow-violet-500/20 transition-all disabled:opacity-50 flex items-center gap-2">

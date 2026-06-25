@@ -23,10 +23,18 @@ router.post('/', verifyToken, checkRole(['principal']), async (req, res) => {
     const ops = [];
     for (const day of DAYS) {
       if (timetable[day]) {
+        // Sanitize periods: convert empty staffId strings to undefined
+        // so Mongoose doesn't throw CastError on ObjectId validation
+        const sanitizedPeriods = timetable[day].map((p) => ({
+          time: p.time || '',
+          subject: p.subject || '',
+          staffName: p.staffName || '',
+          ...(p.staffId && p.staffId.length > 0 ? { staffId: p.staffId } : {}),
+        }));
         ops.push({
           updateOne: {
             filter: { class: cls, day },
-            update: { $set: { class: cls, day, periods: timetable[day] } },
+            update: { $set: { class: cls, day, periods: sanitizedPeriods } },
             upsert: true,
           },
         });
