@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
@@ -68,25 +68,276 @@ const PriorityDot = ({ priority }) => (
   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${priority === 'high' ? 'bg-red-400' : 'bg-slate-600'}`}></span>
 );
 
+// ── Helpers for the ongoing class widget ─────────────────────────────────────
+function parseTime(timeStr) {
+  const parts = timeStr.split(/[\-\u2013\u2014]/).map(t => t.trim());
+  if (parts.length < 2) return null;
+  const [sh, sm] = parts[0].split(':').map(Number);
+  const [eh, em] = parts[1].split(':').map(Number);
+  if ([sh, sm, eh, em].some(isNaN)) return null;
+  return { startH: sh, startM: sm, endH: eh, endM: em };
+}
+
+function getTimeRemaining(endH, endM) {
+  const now = new Date();
+  const end = new Date(now);
+  end.setHours(endH, endM, 0, 0);
+  const diffMs = end - now;
+  if (diffMs <= 0) return null;
+  const mins = Math.floor(diffMs / 60000);
+  const secs = Math.floor((diffMs % 60000) / 1000);
+  return { mins, secs, total: diffMs };
+}
+
+// ── Ongoing Class Widget Component ───────────────────────────────────────────
+const OngoingClassWidget = ({ schedule }) => {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (!schedule || schedule.length === 0) {
+    return (
+      <div className="mb-6 bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-lg">📚</div>
+          <div>
+            <h3 className="text-base font-semibold text-white">Current Class</h3>
+            <p className="text-xs text-slate-500">No schedule data available for today</p>
+          </div>
+        </div>
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 text-center">
+          <p className="text-slate-400 text-sm">No timetable has been set for your class yet.</p>
+          <p className="text-slate-600 text-xs mt-1">Check back after your principal configures the schedule.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Determine ongoing and next class
+  let ongoingClass = null;
+  let nextClass = null;
+
+  for (const slot of schedule) {
+    const parsed = parseTime(slot.time);
+    if (!parsed) continue;
+
+    const startDate = new Date(now);
+    startDate.setHours(parsed.startH, parsed.startM, 0, 0);
+    const endDate = new Date(now);
+    endDate.setHours(parsed.endH, parsed.endM, 0, 0);
+
+    if (now >= startDate && now <= endDate) {
+      ongoingClass = { ...slot, parsed };
+    } else if (now < startDate && !nextClass) {
+      nextClass = { ...slot, parsed };
+    }
+  }
+
+  // If no ongoing and no next, all classes are done
+  const allDone = !ongoingClass && !nextClass;
+
+  // Time remaining for ongoing class
+  let remaining = null;
+  if (ongoingClass) {
+    remaining = getTimeRemaining(ongoingClass.parsed.endH, ongoingClass.parsed.endM);
+  }
+
+  // Progress bar percentage for ongoing class
+  let progressPct = 0;
+  if (ongoingClass && remaining) {
+    const { startH, startM, endH, endM } = ongoingClass.parsed;
+    const totalDuration = (endH * 60 + endM) - (startH * 60 + startM);
+    const elapsed = totalDuration - remaining.mins;
+    progressPct = Math.min(100, Math.max(0, (elapsed / totalDuration) * 100));
+  }
+
+  return (
+    <div className="mb-6">
+      <div className={`relative overflow-hidden rounded-2xl border ${
+        ongoingClass
+          ? 'bg-gradient-to-br from-emerald-500/10 via-slate-900 to-slate-900 border-emerald-500/20'
+          : allDone
+            ? 'bg-gradient-to-br from-violet-500/10 via-slate-900 to-slate-900 border-violet-500/20'
+            : 'bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-900 border-amber-500/20'
+      }`}>
+        {/* Decorative orbs */}
+        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-emerald-500/5 blur-2xl pointer-events-none"></div>
+        <div className="absolute -bottom-8 -left-8 w-32 h-32 rounded-full bg-violet-500/5 blur-2xl pointer-events-none"></div>
+
+        <div className="relative p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl ${
+                ongoingClass ? 'bg-emerald-500/15 border border-emerald-500/25' : allDone ? 'bg-violet-500/15 border border-violet-500/25' : 'bg-amber-500/15 border border-amber-500/25'
+              }`}>
+                {ongoingClass ? '🎓' : allDone ? '✅' : '⏳'}
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">
+                  {ongoingClass ? 'Class In Progress' : allDone ? 'All Classes Completed' : 'No Class Right Now'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${ongoingClass ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`}></span>
+              <span className="text-xs text-slate-500 font-mono">
+                {now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}
+              </span>
+            </div>
+          </div>
+
+          {/* Ongoing Class */}
+          {ongoingClass && (
+            <div className="bg-slate-800/40 backdrop-blur-sm border border-emerald-500/10 rounded-xl p-5 mb-4">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <p className="text-2xl font-bold text-white mb-1">{ongoingClass.subject}</p>
+                  {ongoingClass.staffName && (
+                    <p className="text-sm text-slate-400 flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded-full bg-slate-700 flex items-center justify-center text-[10px]">👤</span>
+                      {ongoingClass.staffName}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Time Left</p>
+                  {remaining && (
+                    <p className="text-xl font-bold text-emerald-400 font-mono tracking-wide">
+                      {String(remaining.mins).padStart(2, '0')}:{String(remaining.secs).padStart(2, '0')}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="mb-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[11px] text-slate-500 font-mono">{ongoingClass.time}</span>
+                  <span className="text-[11px] text-slate-500">Period {ongoingClass.period}</span>
+                </div>
+                <div className="w-full h-2 bg-slate-700/50 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-1000"
+                    style={{ width: `${progressPct}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* No ongoing class message */}
+          {!ongoingClass && !allDone && nextClass && (
+            <div className="bg-slate-800/40 backdrop-blur-sm border border-amber-500/10 rounded-xl p-5 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-2xl">
+                  📖
+                </div>
+                <div>
+                  <p className="text-white font-semibold">No class currently</p>
+                  <p className="text-sm text-slate-400">
+                    Next class is <span className="text-amber-400 font-semibold">{nextClass.subject}</span> at{' '}
+                    <span className="text-white font-mono">{nextClass.time.split(/[\-\u2013\u2014]/)[0].trim()}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* All done message */}
+          {allDone && (
+            <div className="bg-slate-800/40 backdrop-blur-sm border border-violet-500/10 rounded-xl p-5 mb-4 text-center">
+              <p className="text-lg font-semibold text-white mb-1">🎉 You're done for the day!</p>
+              <p className="text-sm text-slate-400">All scheduled classes have been completed.</p>
+            </div>
+          )}
+
+          {/* Next class preview (when ongoing) */}
+          {ongoingClass && nextClass && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-slate-800/30 rounded-xl border border-slate-700/30">
+              <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold min-w-[44px]">Next</span>
+              <div className="w-px h-8 bg-slate-700/50"></div>
+              <div className="flex-1 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-white">{nextClass.subject}</p>
+                  {nextClass.staffName && <p className="text-xs text-slate-500">{nextClass.staffName}</p>}
+                </div>
+                <span className="text-xs text-slate-400 font-mono bg-slate-800 px-2.5 py-1 rounded-lg">
+                  {nextClass.time.split(/[\-\u2013\u2014]/)[0].trim()}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Mini schedule timeline */}
+          {schedule.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-800/60">
+              <p className="text-[11px] text-slate-600 uppercase tracking-wider font-semibold mb-2.5">Today's Timeline</p>
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {schedule.map((slot) => {
+                  const isOngoing = ongoingClass && slot.id === ongoingClass.id;
+                  const isCompleted = slot.status === 'completed';
+                  return (
+                    <div
+                      key={slot.id}
+                      className={`flex-shrink-0 px-3 py-2 rounded-lg text-center min-w-[72px] border transition-all ${
+                        isOngoing
+                          ? 'bg-emerald-500/15 border-emerald-500/30 ring-1 ring-emerald-500/20'
+                          : isCompleted
+                            ? 'bg-slate-800/40 border-slate-700/30 opacity-50'
+                            : 'bg-slate-800/30 border-slate-700/20'
+                      }`}
+                    >
+                      <p className={`text-[10px] font-bold ${isOngoing ? 'text-emerald-400' : 'text-slate-500'}`}>P{slot.period}</p>
+                      <p className={`text-xs font-medium truncate ${isOngoing ? 'text-white' : isCompleted ? 'text-slate-500' : 'text-slate-300'}`}>
+                        {slot.subject === '—' ? '—' : slot.subject.length > 6 ? slot.subject.substring(0, 6) + '..' : slot.subject}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const StudentDashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const res = await api.get('/student/my-info');
-        setData(res.data);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Failed to load dashboard data.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await api.get('/student/my-info');
+      setData(res.data);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load dashboard data.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+
+    // Auto-refresh schedule data every 60 seconds
+    const interval = setInterval(() => {
+      api.get('/student/my-info')
+        .then((res) => setData(res.data))
+        .catch(() => {});
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, [fetchData]);
 
   if (loading) {
     return (
@@ -134,6 +385,9 @@ const StudentDashboard = () => {
             <h1 className="text-2xl font-bold text-white mb-1">Student Dashboard</h1>
             <p className="text-sm text-slate-500">Your academic overview at a glance</p>
           </div>
+
+          {/* Ongoing Class Widget */}
+          <OngoingClassWidget schedule={data.todaySchedule || []} />
 
           {/* Stat cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">

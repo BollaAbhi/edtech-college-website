@@ -1,8 +1,35 @@
 const express = require('express');
 const verifyToken = require('../middleware/verifyToken');
 const checkRole = require('../middleware/checkRole');
+const Student = require('../models/Student');
+const Timetable = require('../models/Timetable');
+const Staff = require('../models/Staff');
+const Notice = require('../models/Notice');
 
 const router = express.Router();
+
+function getPeriodStatus(timeStr) {
+  try {
+    const times = timeStr.split(/[\-\u2013\u2014]/).map(t => t.trim());
+    if (times.length < 2) return 'upcoming';
+
+    const now = new Date();
+    const [startHour, startMin] = times[0].split(':').map(Number);
+    const [endHour, endMin] = times[1].split(':').map(Number);
+
+    const startTime = new Date(now);
+    startTime.setHours(startHour, startMin, 0, 0);
+
+    const endTime = new Date(now);
+    endTime.setHours(endHour, endMin, 0, 0);
+
+    if (now > endTime) return 'completed';
+    if (now >= startTime && now <= endTime) return 'ongoing';
+    return 'upcoming';
+  } catch {
+    return 'upcoming';
+  }
+}
 
 // GET /api/student/my-info — student only
 router.get('/my-info', verifyToken, checkRole(['student']), async (req, res) => {
@@ -73,6 +100,56 @@ router.get('/my-info', verifyToken, checkRole(['student']), async (req, res) => 
       },
     ];
 
+    // ── Build today's schedule from Timetable collection ──
+    let todaySchedule = [];
+    try {
+      const studentDoc = await Student.findOne({ userId: req.user.id });
+      if (studentDoc) {
+        const cls = studentDoc.class && studentDoc.division
+          ? `${studentDoc.class}-${studentDoc.division}`
+          : studentDoc.class || '';
+
+        const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        let todayDay = daysOfWeek[new Date().getDay()];
+        if (todayDay === 'Sunday') todayDay = 'Monday';
+
+        // Try multiple class name formats
+        const classVariants = [cls];
+        if (studentDoc.class && studentDoc.division) {
+          classVariants.push(`${studentDoc.class}${studentDoc.division}`);
+          classVariants.push(`${studentDoc.class} ${studentDoc.division}`);
+        }
+
+        let ttDoc = null;
+        for (const variant of classVariants) {
+          ttDoc = await Timetable.findOne({ class: variant, day: todayDay });
+          if (ttDoc) break;
+        }
+
+        if (ttDoc && ttDoc.periods.length > 0) {
+          // Resolve staff names for each period
+          const staffIds = ttDoc.periods
+            .filter(p => p.staffId)
+            .map(p => p.staffId);
+
+          const staffDocs = await Staff.find({ _id: { $in: staffIds } }).select('_id name');
+          const staffMap = {};
+          staffDocs.forEach(s => { staffMap[s._id.toString()] = s.name; });
+
+          todaySchedule = ttDoc.periods.map((p, idx) => ({
+            id: idx + 1,
+            period: idx + 1,
+            time: p.time,
+            subject: p.subject || '—',
+            staffName: p.staffName || (p.staffId ? staffMap[p.staffId.toString()] : '') || '',
+            status: getPeriodStatus(p.time),
+          }));
+        }
+      }
+    } catch (schedErr) {
+      console.error('Error building student schedule:', schedErr);
+    }
+
     res.json({
       overallAttendance,
       subjectAttendance,
@@ -80,6 +157,7 @@ router.get('/my-info', verifyToken, checkRole(['student']), async (req, res) => 
       upcomingExams,
       feeStatus,
       notices,
+      todaySchedule,
     });
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch student info.' });
@@ -87,3 +165,4 @@ router.get('/my-info', verifyToken, checkRole(['student']), async (req, res) => 
 });
 
 module.exports = router;
+
