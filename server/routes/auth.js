@@ -59,11 +59,44 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
+    // Check if account is locked
+    if (user.isLocked) {
+      const now = new Date();
+      if (user.lockUntil && now > user.lockUntil) {
+        // Auto-unlock account if lockout period has expired
+        user.isLocked = false;
+        user.loginAttempts = 0;
+        user.lockUntil = undefined;
+        await user.save();
+      } else {
+        // Still locked
+        return res.status(403).json({ message: 'Account locked for 30 minutes.' });
+      }
+    }
+
     // Compare passwords
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
+      // Track failed attempt
+      user.loginAttempts = (user.loginAttempts || 0) + 1;
+
+      // Lock account after 5 failed attempts
+      if (user.loginAttempts >= 5) {
+        user.isLocked = true;
+        user.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
+        await user.save();
+        return res.status(403).json({ message: 'Account locked for 30 minutes.' });
+      }
+
+      await user.save();
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
+
+    // Reset login attempts on successful login
+    user.loginAttempts = 0;
+    user.isLocked = false;
+    user.lockUntil = undefined;
+    await user.save();
 
     // Generate JWT with role in payload
     const token = jwt.sign(
@@ -83,6 +116,7 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: 'Server error. Please try again.' });
   }
 });
