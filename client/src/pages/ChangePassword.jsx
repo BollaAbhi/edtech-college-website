@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../utils/api';
 import { showToast } from '../components/Toast';
 
 const ChangePassword = () => {
+  const { user, logout } = useAuth();
   const [email, setEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -12,13 +15,17 @@ const ChangePassword = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Attempt to prefill email from expired session if redirected
-    const prefilled = localStorage.getItem('expired_email');
-    if (prefilled) {
-      setEmail(prefilled);
-      localStorage.removeItem('expired_email');
+    if (user) {
+      setEmail(user.email);
+    } else {
+      // Attempt to prefill email from expired session if redirected
+      const prefilled = localStorage.getItem('expired_email');
+      if (prefilled) {
+        setEmail(prefilled);
+        localStorage.removeItem('expired_email');
+      }
     }
-  }, []);
+  }, [user]);
 
   // Real-time validations
   const checks = {
@@ -35,7 +42,7 @@ const ChangePassword = () => {
     e.preventDefault();
     setError('');
 
-    if (!email || !newPassword || !confirmPassword) {
+    if (!email || !currentPassword || !newPassword || !confirmPassword) {
       return setError('All fields are required.');
     }
 
@@ -49,8 +56,9 @@ const ChangePassword = () => {
 
     setIsLoading(true);
     try {
-      const res = await api.post('/api/auth/reset-password', { email, newPassword });
+      const res = await api.post('/api/auth/change-password', { email, currentPassword, newPassword });
       showToast(res.data?.message || 'Password changed successfully! Please log in.', 'success');
+      logout();
       navigate('/login');
     } catch (err) {
       console.error('Password change error:', err);
@@ -74,7 +82,7 @@ const ChangePassword = () => {
       {/* Left panel — branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-indigo-700 via-purple-600 to-pink-700 relative overflow-hidden items-center justify-center">
         <div className="absolute -top-24 -right-24 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
-        <div className="absolute bottom-0 right-0 w-80 h-80 bg-cyan-400/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-cyan-400/10 rounded-full blur-3xl"></div>
 
         <div className="relative z-10 px-12 max-w-lg">
           <div className="flex items-center gap-3 mb-8">
@@ -119,11 +127,30 @@ const ChangePassword = () => {
                 id="email"
                 type="email"
                 required
+                disabled={!!user}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-violet-500 transition-colors"
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-violet-500 transition-colors disabled:opacity-50"
                 placeholder="you@example.com"
               />
+            </div>
+
+            <div>
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-slate-300 mb-2">Current password</label>
+              <input
+                id="currentPassword"
+                type="password"
+                required
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-violet-500 transition-colors"
+                placeholder="••••••••"
+              />
+              {user?.isFirstLogin && (
+                <p className="text-slate-550 text-[11px] mt-1.5 leading-normal">
+                  * First login temporary password: <code className="bg-slate-900 px-1 py-0.5 rounded font-bold text-slate-300">{user.role === 'staff' ? 'Staff@<First4Name>' : 'Student@<RollNo>'}</code>
+                </p>
+              )}
             </div>
 
             <div>

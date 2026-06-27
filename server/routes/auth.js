@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const User = require('../models/User');
 const logEvent = require('../utils/auditLogger');
+const verifyToken = require('../middleware/verifyToken');
 const {
   sendResetEmail,
   sendLockoutEmail,
@@ -51,6 +52,20 @@ router.post('/login', async (req, res) => {
         ipAddress: req.ip
       });
       return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    // Check if account is active
+    if (user.isActive === false) {
+      await logEvent({
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: 'LOGIN_FAILED',
+        success: false,
+        details: 'Rejected: Account deactivated by administrator',
+        ipAddress: req.ip
+      });
+      return res.status(403).json({ message: 'Your account has been deactivated. Please contact the administrator.' });
     }
 
     // Check password expiry (90 days)
@@ -174,6 +189,7 @@ router.post('/login', async (req, res) => {
         email: user.email,
         role: user.role,
         lastPasswordChange: user.lastPasswordChange || user.createdAt,
+        isFirstLogin: user.isFirstLogin,
       },
     });
   } catch (error) {
@@ -415,6 +431,126 @@ router.post('/reset-password', async (req, res) => {
   } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({ message: 'Server error. Failed to reset password.' });
+  }
+});
+
+// POST /api/auth/change-password — Authenticated or Unauthenticated password update
+router.post('/change-password', async (req, res) => {
+  try {
+    const { email, currentPassword, newPassword } = req.body;
+
+    if (!newPassword) {
+      return res.status(400).json({ message: 'New password is required.' });
+    }
+
+    let user;
+
+    // 1. Try to authenticate via Bearer token
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        user = await User.findById(decoded.id);
+      } catch (err) {
+        // Token verification failed, we will fall back to email lookup
+      }
+    }
+
+    // 2. If not authenticated, look up by email and check currentPassword
+    if (!user) {
+      if (!email || !currentPassword) {
+        return res.status(400).json({ message: 'Email and current password are required.' });
+      }
+      user = await User.findOne({ email: email.toLowerCase().trim() });
+      if (!user) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+      const isMatch = await user.comparePassword(currentPassword);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Current password is incorrect.' });
+      }
+    } else {
+      // Authenticated flow: check currentPassword if it is not their first login
+      if (!user.isFirstLogin) {
+        if (!currentPassword) {
+          return res.status(400).json({ message: 'Current password is required.' });
+        }
+        const isMatch = await user.comparePassword(currentPassword);
+        if (!isMatch) {
+          return res.status(400).json({ message: 'Current password is incorrect.' });
+        }
+      }
+    }
+
+    // Validate new password complexity
+    const strengthError = validatePasswordStrength(newPassword);
+    if (strengthError) {
+      return res.status(400).json({ message: strengthError });
+    }
+
+    // Prevent reuse of the last 3 passwords
+    const isCurrentMatch = await user.comparePassword(newPassword);
+    if (isCurrentMatch) {
+      return res.status(400).json({ message: 'Cannot reuse any of your last 3 passwords.' });
+    }
+
+    let matchPrevious = false;
+    for (const oldHash of user.previousPasswords || []) {
+      const match = await bcrypt.compare(newPassword, oldHash);
+      if (match) {
+        matchPrevious = true;
+        break;
+      }
+    }
+    if (matchPrevious) {
+      return res.status(400).json({ message: 'Cannot reuse any of your last 3 passwords.' });
+    }
+
+    // Push current hash into previousPasswords history
+    if (!user.previousPasswords) {
+      user.previousPasswords = [];
+    }
+    user.previousPasswords.unshift(user.password);
+    if (user.previousPasswords.length > 3) {
+      user.previousPasswords = user.previousPasswords.slice(0, 3);
+    }
+
+    user.password = newPassword;
+    user.lastPasswordChange = new Date();
+    user.isFirstLogin = false; // Turn off first-login flag
+    user.activeToken = undefined; // Force user to log in again with new password
+    user.refreshToken = undefined;
+
+    await user.save();
+
+    await logEvent({
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: 'PASSWORD_RESET',
+      success: true,
+      details: 'Password changed successfully',
+      ipAddress: req.ip
+    });
+
+    await logEvent({
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: 'SESSION_INVALIDATION',
+      success: true,
+      details: 'Invalidated all sessions on password change',
+      ipAddress: req.ip
+    });
+
+    // Send confirmation email
+    await sendPasswordChangedEmail(user.email, user.name);
+
+    res.json({ message: 'Password updated successfully. Please log in with your new credentials.' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ message: 'Server error. Failed to change password.' });
   }
 });
 

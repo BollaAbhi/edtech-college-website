@@ -4,7 +4,7 @@ import Navbar from '../../components/principal/Navbar';
 import { showToast } from '../../components/Toast';
 import api from '../../utils/api';
 
-const EMPTY_FORM = { name: '', email: '', phone: '', class: '', division: '', rollNo: '', feeStatus: 'unpaid' };
+const EMPTY_FORM = { name: '', email: '', phone: '', class: '', division: '', rollNo: '', feeStatus: 'unpaid', isActive: true };
 
 const FeeStatusBadge = ({ status }) => {
   const styles = {
@@ -104,6 +104,18 @@ const StudentModal = ({ isOpen, onClose, onSubmit, form, setForm, isEditing, isL
                 <option value="paid">Paid</option>
               </select>
             </div>
+            {isEditing && (
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1.5">Account Status</label>
+                <select
+                  name="isActive" value={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.value === 'true' })}
+                  className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent text-sm transition-all"
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Deactivated</option>
+                </select>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-2">
@@ -219,6 +231,7 @@ const Students = () => {
       division: student.division,
       rollNo: student.rollNo,
       feeStatus: student.feeStatus,
+      isActive: student.userId?.isActive !== false,
     });
     setIsEditing(true);
     setEditingId(student._id);
@@ -257,6 +270,17 @@ const Students = () => {
       showToast(err.response?.data?.message || 'Delete failed.', 'error');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (id, name) => {
+    if (window.confirm(`Are you sure you want to reset the password for ${name} to default (Student@<rollNo>)?`)) {
+      try {
+        const res = await api.post(`/students/${id}/reset-password`);
+        showToast(res.data?.message || 'Password reset successfully.', 'success');
+      } catch (err) {
+        showToast(err.response?.data?.message || 'Failed to reset password.', 'error');
+      }
     }
   };
 
@@ -347,7 +371,14 @@ const Students = () => {
                               {s.name.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <p className="text-sm font-medium text-white">{s.name}</p>
+                              <p className="text-sm font-medium text-white flex items-center gap-1.5">
+                                {s.name}
+                                {s.userId?.isActive === false && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-red-550/10 text-red-400 border border-red-500/20">
+                                    Deactivated
+                                  </span>
+                                )}
+                              </p>
                               <p className="text-xs text-slate-500">{s.email}</p>
                             </div>
                           </div>
@@ -358,6 +389,15 @@ const Students = () => {
                         <td className="px-6 py-4"><FeeStatusBadge status={s.feeStatus} /></td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleResetPassword(s._id, s.name)}
+                              className="p-2 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-all"
+                              title="Reset Password"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m-5 4a5 5 0 01-5-5 5 5 0 015-5 5 5 0 015 5 5 5 0 01-5 5zm0 0v8m0 0l-3-3m3 3l3-3" />
+                              </svg>
+                            </button>
                             <button
                               onClick={() => openEditModal(s)}
                               className="p-2 text-slate-400 hover:text-violet-400 hover:bg-violet-500/10 rounded-lg transition-all"

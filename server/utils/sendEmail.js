@@ -89,30 +89,42 @@ const sendPasswordChangedEmail = async (toEmail, userName) => {
 
 const sendWelcomeEmail = async (toEmail, userName, tempPassword, role) => {
   try {
+    const clientUrl = process.env.CLIENT_URL || 'https://edtech-college-website.vercel.app';
+    const loginLink = `${clientUrl}/login`;
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: toEmail,
-      subject: 'EdTech - Welcome to EdTech!',
+      subject: 'Welcome to EdTech - Your Account Details',
       html: `
-        <h2>Welcome to EdTech, ${userName}!</h2>
-        <p>Your account has been successfully created as a <strong>${role}</strong>.</p>
-        <p>Here are your temporary login credentials:</p>
-        <ul>
-          <li><strong>Email:</strong> ${toEmail}</li>
-          <li><strong>Temporary Password:</strong> ${tempPassword}</li>
-        </ul>
-        <p>For security, please log in and change your password as soon as possible.</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+          <h2 style="color: #4f46e5; text-align: center;">Welcome to EdTech!</h2>
+          <p>Hello <strong>${userName}</strong>,</p>
+          <p>Your account has been successfully created as a <strong>${role}</strong>.</p>
+          <p>Here are your account login details:</p>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8e5; border-radius: 6px; padding: 15px; margin: 20px 0;">
+            <p style="margin: 0 0 8px 0;"><strong>Login Page:</strong> <a href="${loginLink}" style="color: #4f46e5; font-weight: bold;">${loginLink}</a></p>
+            <p style="margin: 0 0 8px 0;"><strong>Username / Email:</strong> ${toEmail}</p>
+            <p style="margin: 0;"><strong>Temporary Password:</strong> <code style="background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${tempPassword}</code></p>
+          </div>
+          <p style="color: #ea580c; font-weight: bold;">Please change your password on first login to secure your account.</p>
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+          <p style="font-size: 12px; color: #64748b; text-align: center;">EdTech Inc. · 123 Education Way</p>
+        </div>
       `
     };
     await transporter.sendMail(mailOptions);
     console.log(`Welcome email sent successfully to ${toEmail}`);
     return true;
   } catch (error) {
+    const clientUrl = process.env.CLIENT_URL || 'https://edtech-college-website.vercel.app';
+    const loginLink = `${clientUrl}/login`;
     console.error(`SMTP Failed to send welcome email to ${toEmail}. Fallback log:`);
     console.log('--- WELCOME EMAIL ---');
     console.log(`To: ${toEmail} (${userName})`);
     console.log(`Role: ${role}`);
+    console.log(`Login Link: ${loginLink}`);
     console.log(`Temporary Password: ${tempPassword}`);
+    console.log(`Status: Please change password on first login`);
     console.log('----------------------');
     return false;
   }

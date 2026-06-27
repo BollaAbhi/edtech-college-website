@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ToastContainer, showToast } from './components/Toast';
@@ -57,7 +57,17 @@ const HomeRedirect = () => {
 };
 
 function App() {
+  const navigate = useNavigate();
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (user && user.isFirstLogin) {
+      if (window.location.pathname !== '/change-password') {
+        showToast('First login detected. You must change your password to continue.', 'warning');
+        navigate('/change-password');
+      }
+    }
+  }, [user, navigate]);
 
   useEffect(() => {
     if (user && user.lastPasswordChange) {

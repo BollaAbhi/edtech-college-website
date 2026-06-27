@@ -37,7 +37,7 @@ router.get('/', async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
-      .populate('userId', 'name email role');
+      .populate('userId', 'name email role isActive isFirstLogin');
 
     res.json({
       students,
@@ -64,13 +64,14 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'A user with this email already exists.' });
     }
 
-    // Create a User account with default password
-    const defaultPassword = 'student123';
+    // Auto-generate temporary password: Student@<rollNo>
+    const defaultPassword = `Student@${rollNo}`;
     const user = await User.create({
       name,
       email,
       password: defaultPassword,
       role: 'student',
+      isFirstLogin: true,
     });
 
     // Create student record linked to User
@@ -127,6 +128,11 @@ router.put('/:id', async (req, res) => {
       await User.findByIdAndUpdate(student.userId, { name });
     }
 
+    const { isActive } = req.body;
+    if (isActive !== undefined && student.userId) {
+      await User.findByIdAndUpdate(student.userId, { isActive });
+    }
+
     const updated = await Student.findByIdAndUpdate(
       req.params.id,
       {
@@ -172,4 +178,28 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/students/:id/reset-password — Reset password (Principal only)
+router.post('/:id/reset-password', async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id);
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found.' });
+    }
+
+    const tempPassword = req.body.password || `Student@${student.rollNo}`;
+    const user = await User.findById(student.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User account not found.' });
+    }
+
+    user.password = tempPassword;
+    user.isFirstLogin = true;
+    user.activeToken = undefined; // Force fresh login
+    await user.save();
+
+    res.json({ message: `Password reset successfully. Temporary password: ${tempPassword}` });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to reset student password.' });
+  }
+});
 module.exports = router;

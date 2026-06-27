@@ -31,7 +31,7 @@ router.get('/', async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
-      .populate('userId', 'name email role');
+      .populate('userId', 'name email role isActive isFirstLogin');
 
     res.json({
       staff: staffList,
@@ -57,13 +57,18 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'A user with this email already exists.' });
     }
 
+    // Auto-generate temporary password: Staff@<first4lettersOfName>
+    const first4 = name.replace(/\s+/g, '').substring(0, 4);
+    const capitalized = first4.charAt(0).toUpperCase() + first4.slice(1);
+    const defaultPassword = `Staff@${capitalized}`;
+
     // Create User account with default password
-    const defaultPassword = 'staff123';
     const user = await User.create({
       name,
       email,
       password: defaultPassword,
       role: 'staff',
+      isFirstLogin: true,
     });
 
     const staffMember = await Staff.create({
@@ -117,6 +122,11 @@ router.put('/:id', async (req, res) => {
       await User.findByIdAndUpdate(staffMember.userId, { name });
     }
 
+    const { isActive } = req.body;
+    if (isActive !== undefined && staffMember.userId) {
+      await User.findByIdAndUpdate(staffMember.userId, { isActive });
+    }
+
     const updated = await Staff.findByIdAndUpdate(
       req.params.id,
       {
@@ -159,4 +169,30 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// POST /api/staff-members/:id/reset-password — Reset password (Principal only)
+router.post('/:id/reset-password', async (req, res) => {
+  try {
+    const staffMember = await Staff.findById(req.params.id);
+    if (!staffMember) {
+      return res.status(404).json({ message: 'Staff member not found.' });
+    }
+
+    const first4 = staffMember.name.replace(/\s+/g, '').substring(0, 4);
+    const capitalized = first4.charAt(0).toUpperCase() + first4.slice(1);
+    const tempPassword = req.body.password || `Staff@${capitalized}`;
+
+    const user = await User.findById(staffMember.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User account not found.' });
+    }
+
+    user.password = tempPassword;
+    user.isFirstLogin = true;
+    user.activeToken = undefined; // Force fresh login
+    await user.save();
+
+    res.json({ message: `Password reset successfully. Temporary password: ${tempPassword}` });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to reset staff password.' });
+  }
 module.exports = router;
