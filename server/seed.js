@@ -197,11 +197,11 @@ const seedDatabase = async () => {
     // 4. Seed FeeRecords
     console.log('Seeding Fee records...');
     const feeRecords = [
-      { studentId: alexRivera._id, amount: 5000, paidAmount: 5000, status: 'paid', paidDate: '2026-05-15', semester: 'Fall 2026' },
-      { studentId: emilyChen._id, amount: 5000, paidAmount: 2500, status: 'partial', paidDate: '2026-05-20', semester: 'Fall 2026' },
-      { studentId: marcusJohnson._id, amount: 5000, paidAmount: 0, status: 'pending', paidDate: '', semester: 'Fall 2026' },
-      { studentId: sophiaPatel._id, amount: 5000, paidAmount: 5000, status: 'paid', paidDate: '2026-05-12', semester: 'Fall 2026' },
-      { studentId: liamOConnor._id, amount: 5000, paidAmount: 5000, status: 'paid', paidDate: '2026-05-14', semester: 'Fall 2026' }
+      { studentId: alexRivera._id, amount: 25000, paidAmount: 25000, status: 'paid', paidDate: '2026-05-15', feeType: 'yearly' },
+      { studentId: emilyChen._id, amount: 25000, paidAmount: 12500, status: 'partial', paidDate: '2026-05-20', feeType: 'yearly' },
+      { studentId: marcusJohnson._id, amount: 25000, paidAmount: 0, status: 'pending', paidDate: '', feeType: 'yearly' },
+      { studentId: sophiaPatel._id, amount: 25000, paidAmount: 25000, status: 'paid', paidDate: '2026-05-12', feeType: 'yearly' },
+      { studentId: liamOConnor._id, amount: 25000, paidAmount: 25000, status: 'paid', paidDate: '2026-05-14', feeType: 'yearly' }
     ];
     await FeeRecord.insertMany(feeRecords);
 

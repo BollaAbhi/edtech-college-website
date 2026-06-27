@@ -7,12 +7,20 @@ const statusStyles = {
   paid: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
   partial: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',
   pending: 'bg-red-500/10 text-red-400 border border-red-500/20',
+  not_set: 'bg-slate-700/30 text-slate-400 border border-slate-600/30',
 };
 
 const overallStyles = {
   paid: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
   partial: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
   unpaid: 'text-red-400 bg-red-500/10 border-red-500/20',
+};
+
+const termIcons = {
+  yearly: '📅',
+  term1: '☀️',
+  term2: '🍂',
+  term3: '❄️',
 };
 
 const getBarColor = (pct) => {
@@ -33,7 +41,12 @@ const StudentFeeStatus = () => {
         setData(res.data);
       } catch (err) {
         if (err.response?.status === 404) {
-          setData({ records: [], summary: { totalDue: 0, totalPaid: 0, totalOutstanding: 0, overallStatus: 'unpaid' } });
+          setData({
+            records: [],
+            summary: { totalDue: 0, totalPaid: 0, totalOutstanding: 0, overallStatus: 'unpaid' },
+            termStatus: {},
+            currentYear: '',
+          });
         } else {
           setError(err.response?.data?.message || 'Failed to load fee information.');
         }
@@ -69,7 +82,10 @@ const StudentFeeStatus = () => {
     );
   }
 
-  const { summary, records } = data;
+  const { summary, records, termStatus, currentYear } = data;
+
+  // Calculate overall progress
+  const overallPct = summary.totalDue > 0 ? (summary.totalPaid / summary.totalDue) * 100 : 0;
 
   return (
     <div className="flex min-h-screen bg-slate-950 text-slate-100">
@@ -81,104 +97,167 @@ const StudentFeeStatus = () => {
           <div className="mb-8 flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-white mb-1">My Fee Status</h1>
-              <p className="text-sm text-slate-500">View your billing, receipts, and outstanding fee balance</p>
+              <p className="text-sm text-slate-500">
+                Academic Year {currentYear || '—'} · View your billing & payment history
+              </p>
             </div>
             <span className={`inline-flex px-3 py-1.5 text-xs font-bold uppercase rounded-lg border capitalize tracking-wider ${overallStyles[summary.overallStatus] || overallStyles.unpaid}`}>
-              Status: {summary.overallStatus}
+              {summary.overallStatus === 'unpaid' ? 'Pending' : summary.overallStatus}
             </span>
           </div>
 
-          {/* Overall Cards */}
+          {/* Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
             <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Amount Billed</p>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Fee</p>
               <p className="text-3xl font-bold text-white">₹{summary.totalDue.toLocaleString()}</p>
             </div>
-            <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20">
-              <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider mb-2">Total Amount Paid</p>
+            <div className="p-6 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-transparent border border-emerald-500/20">
+              <p className="text-xs font-semibold text-emerald-500 uppercase tracking-wider mb-2">Total Paid</p>
               <p className="text-3xl font-bold text-emerald-400">₹{summary.totalPaid.toLocaleString()}</p>
             </div>
-            <div className="p-6 rounded-2xl bg-red-500/10 border border-red-500/20">
-              <p className="text-xs font-semibold text-red-500 uppercase tracking-wider mb-2">Outstanding Balance</p>
+            <div className="p-6 rounded-2xl bg-gradient-to-br from-red-500/10 to-transparent border border-red-500/20">
+              <p className="text-xs font-semibold text-red-500 uppercase tracking-wider mb-2">Outstanding</p>
               <p className="text-3xl font-bold text-red-400">₹{summary.totalOutstanding.toLocaleString()}</p>
             </div>
           </div>
 
-          {/* Breakdown & Receipts Ledger */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Semester-wise breakdown */}
-            <div className="lg:col-span-2 space-y-4">
-              <h3 className="text-lg font-bold text-white mb-4">Semester Invoices</h3>
+          {/* Overall Progress Bar */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-white">Overall Payment Progress</p>
+              <p className="text-sm font-bold text-emerald-400">{overallPct.toFixed(0)}%</p>
+            </div>
+            <div className="h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+              <div className={`h-full rounded-full transition-all duration-700 ${getBarColor(overallPct)}`} style={{ width: `${overallPct}%` }}></div>
+            </div>
+          </div>
 
-              {records.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 bg-slate-900/50 border border-slate-800 border-dashed rounded-2xl text-center">
-                  <div className="text-4xl mb-3">📭</div>
-                  <p className="text-slate-400 text-sm font-semibold">No fee records found</p>
-                  <p className="text-slate-600 text-xs mt-1">You have no invoices listed for this academic year.</p>
-                </div>
-              ) : (
-                records.map((rec) => {
-                  const pct = rec.amount > 0 ? (rec.paidAmount / rec.amount) * 100 : 0;
-                  return (
-                    <div key={rec._id} className="p-6 bg-slate-900 border border-slate-800 rounded-2xl">
-                      <div className="flex items-start justify-between gap-4 mb-4">
+          {/* Term-wise Status Cards */}
+          <div className="mb-8">
+            <h3 className="text-lg font-bold text-white mb-4">Term-wise Breakdown</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {Object.entries(termStatus || {}).map(([key, term]) => {
+                const pct = term.amount > 0 ? (term.paidAmount / term.amount) * 100 : 0;
+                const outstanding = term.amount - term.paidAmount;
+                return (
+                  <div key={key} className="bg-slate-900 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-colors">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xl">{termIcons[key] || '📋'}</span>
                         <div>
-                          <h4 className="text-base font-bold text-white">{rec.semester}</h4>
-                          <p className="text-xs text-slate-500 mt-1">
-                            Billed Amount: ₹{rec.amount.toLocaleString()}
-                          </p>
-                        </div>
-                        <span className={`px-2.5 py-1 text-xs font-bold uppercase rounded-lg tracking-wider ${statusStyles[rec.status] || statusStyles.pending}`}>
-                          {rec.status}
-                        </span>
-                      </div>
-
-                      {/* Progress bar */}
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-400">Paid: ₹{rec.paidAmount.toLocaleString()}</span>
-                          <span className="font-semibold text-white">{pct.toFixed(0)}% Completed</span>
-                        </div>
-                        <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-850">
-                          <div
-                            className={`h-full rounded-full transition-all duration-750 ${getBarColor(pct)}`}
-                            style={{ width: `${pct}%` }}
-                          />
+                          <p className="text-sm font-semibold text-white">{term.label}</p>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-wider">{key}</p>
                         </div>
                       </div>
+                      <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-lg tracking-wider ${statusStyles[term.status]}`}>
+                        {term.status === 'not_set' ? 'N/A' : term.status}
+                      </span>
                     </div>
-                  );
-                })
-              )}
-            </div>
 
-            {/* Payment history ledger */}
-            <div className="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-2xl p-6 h-fit">
-              <h3 className="text-lg font-bold text-white mb-4">Recent Receipts</h3>
-
-              {records.filter(r => r.paidAmount > 0).length === 0 ? (
-                <div className="text-center py-10">
-                  <p className="text-slate-600 text-xs">No transaction records found.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {records
-                    .filter((rec) => rec.paidAmount > 0)
-                    .map((rec) => (
-                      <div key={rec._id} className="pb-4 border-b border-slate-800 last:border-b-0 last:pb-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-xs text-slate-400 font-medium">{rec.semester}</span>
-                          <span className="text-xs font-bold text-emerald-400">₹{rec.paidAmount.toLocaleString()}</span>
-                        </div>
-                        <div className="flex items-center justify-between gap-2 mt-1">
-                          <span className="text-[10px] text-slate-500">Transaction Date</span>
-                          <span className="text-[10px] text-slate-400 font-semibold">{rec.paidDate || '—'}</span>
-                        </div>
+                    {term.status === 'not_set' ? (
+                      <div className="text-center py-4">
+                        <p className="text-xs text-slate-600">Not yet assigned</p>
                       </div>
-                    ))}
+                    ) : (
+                      <>
+                        <div className="space-y-2 mb-3">
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-400">Fee Amount</span>
+                            <span className="text-white font-medium">₹{term.amount.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-slate-400">Paid</span>
+                            <span className="text-emerald-400 font-medium">₹{term.paidAmount.toLocaleString()}</span>
+                          </div>
+                          {outstanding > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-slate-400">Pending</span>
+                              <span className="text-red-400 font-bold">₹{outstanding.toLocaleString()}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                          <div className={`h-full rounded-full transition-all duration-500 ${getBarColor(pct)}`} style={{ width: `${Math.min(100, pct)}%` }}></div>
+                        </div>
+                        <p className="text-[10px] text-slate-600 mt-1.5 text-right">{pct.toFixed(0)}% paid</p>
+
+                        {term.paidDate && (
+                          <p className="text-[10px] text-slate-500 mt-2 flex items-center gap-1">
+                            <span>📅</span> Paid on {term.paidDate}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+              {Object.keys(termStatus || {}).length === 0 && (
+                <div className="col-span-full text-center py-12 bg-slate-900/50 border border-slate-800 border-dashed rounded-2xl">
+                  <div className="text-4xl mb-3">📭</div>
+                  <p className="text-slate-400 text-sm font-semibold">No term fees assigned yet</p>
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Payment History Table */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+            <div className="px-6 py-5 border-b border-slate-800">
+              <h3 className="text-lg font-bold text-white">Payment History</h3>
+              <p className="text-xs text-slate-500 mt-0.5">Complete record of all fee transactions</p>
+            </div>
+
+            {records.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="text-4xl mb-3">📭</div>
+                <p className="text-slate-400 text-sm font-semibold">No payment records found</p>
+                <p className="text-slate-600 text-xs mt-1">Records will appear here once fees are assigned by the principal.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      <th className="px-6 py-3">Fee Type</th>
+                      <th className="px-6 py-3">Academic Year</th>
+                      <th className="px-6 py-3">Total</th>
+                      <th className="px-6 py-3">Paid</th>
+                      <th className="px-6 py-3">Balance</th>
+                      <th className="px-6 py-3">Date</th>
+                      <th className="px-6 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((rec) => {
+                      const balance = rec.amount - rec.paidAmount;
+                      return (
+                        <tr key={rec._id} className="border-b border-slate-800/50 hover:bg-slate-800/20 transition-colors">
+                          <td className="px-6 py-3.5">
+                            <p className="text-sm font-medium text-white">{rec.feeTypeLabel}</p>
+                          </td>
+                          <td className="px-6 py-3.5 text-sm text-slate-400">{rec.academicYear}</td>
+                          <td className="px-6 py-3.5 text-sm text-white font-mono">₹{rec.amount.toLocaleString()}</td>
+                          <td className="px-6 py-3.5 text-sm text-emerald-400 font-mono">₹{rec.paidAmount.toLocaleString()}</td>
+                          <td className="px-6 py-3.5 text-sm font-mono">
+                            <span className={balance > 0 ? 'text-red-400 font-bold' : 'text-slate-500'}>
+                              ₹{balance.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3.5 text-sm text-slate-400">{rec.paidDate || '—'}</td>
+                          <td className="px-6 py-3.5">
+                            <span className={`px-2.5 py-1 text-xs font-bold uppercase rounded-lg tracking-wider ${statusStyles[rec.status]}`}>
+                              {rec.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </main>
       </div>

@@ -7,6 +7,11 @@ const feeRecordSchema = new mongoose.Schema(
       ref: 'Student',
       required: [true, 'Student is required'],
     },
+    feeType: {
+      type: String,
+      enum: ['yearly', 'term1', 'term2', 'term3'],
+      required: [true, 'Fee type is required'],
+    },
     amount: {
       type: Number,
       required: [true, 'Amount is required'],
@@ -26,16 +31,25 @@ const feeRecordSchema = new mongoose.Schema(
       enum: ['paid', 'pending', 'partial'],
       default: 'pending',
     },
-    semester: {
+    academicYear: {
       type: String,
-      required: [true, 'Semester is required'],
+      default: () => {
+        const now = new Date();
+        const yr = now.getMonth() >= 5 ? now.getFullYear() : now.getFullYear() - 1;
+        return `${yr}-${yr + 1}`;
+      },
+      trim: true,
+    },
+    remarks: {
+      type: String,
+      default: '',
       trim: true,
     },
   },
   { timestamps: true }
 );
 
-// Unique fee record per student per semester
-feeRecordSchema.index({ studentId: 1, semester: 1 }, { unique: true });
+// One fee record per student per feeType per academic year
+feeRecordSchema.index({ studentId: 1, feeType: 1, academicYear: 1 }, { unique: true });
 
 module.exports = mongoose.model('FeeRecord', feeRecordSchema);
