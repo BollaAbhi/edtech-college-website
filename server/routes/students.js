@@ -4,6 +4,7 @@ const Student = require('../models/Student');
 const User = require('../models/User');
 const verifyToken = require('../middleware/verifyToken');
 const checkRole = require('../middleware/checkRole');
+const { sendWelcomeEmail } = require('../utils/sendEmail');
 
 const router = express.Router();
 
@@ -83,6 +84,9 @@ router.post('/', async (req, res) => {
       feeStatus: feeStatus || 'unpaid',
       userId: user._id,
     });
+
+    // Send Welcome Email
+    await sendWelcomeEmail(user.email, user.name, defaultPassword, 'student');
 
     res.status(201).json({
       message: `Student added successfully. Default password: ${defaultPassword}`,

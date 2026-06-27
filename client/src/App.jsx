@@ -99,6 +99,12 @@ function App() {
             <ResetPassword />
           }
         />
+        <Route
+          path="/reset-password/:token"
+          element={
+            <ResetPassword />
+          }
+        />
 
         <Route path="/unauthorized" element={<Unauthorized />} />
 

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../utils/api';
 import { showToast } from '../components/Toast';
 
 const ResetPassword = () => {
+  const { token: pathToken } = useParams();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token');
+  const token = pathToken || searchParams.get('token');
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');

@@ -3,6 +3,7 @@ const Staff = require('../models/Staff');
 const User = require('../models/User');
 const verifyToken = require('../middleware/verifyToken');
 const checkRole = require('../middleware/checkRole');
+const { sendWelcomeEmail } = require('../utils/sendEmail');
 
 const router = express.Router();
 
@@ -73,6 +74,9 @@ router.post('/', async (req, res) => {
       classesAssigned: classesAssigned || [],
       userId: user._id,
     });
+
+    // Send Welcome Email
+    await sendWelcomeEmail(user.email, user.name, defaultPassword, 'staff');
 
     res.status(201).json({
       message: `Staff added successfully. Default password: ${defaultPassword}`,

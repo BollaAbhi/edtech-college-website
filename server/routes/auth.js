@@ -1,92 +1,14 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const User = require('../models/User');
 const logEvent = require('../utils/auditLogger');
-
-// Nodemailer setup for sending password reset emails
-const sendResetEmail = async (email, resetLink) => {
-  let transporter;
-  if (process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT),
-      secure: parseInt(process.env.SMTP_PORT) === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  } else {
-    console.log('--- MAIL SENDER FALLBACK ACTIVE ---');
-    console.log(`Sending password reset link to: ${email}`);
-    console.log(`Reset Link: ${resetLink}`);
-    console.log('----------------------------------');
-    return true;
-  }
-
-  const mailOptions = {
-    from: process.env.SMTP_FROM || '"EdTech Support" <support@edtech.com>',
-    to: email,
-    subject: 'Password Reset Request',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-        <h2 style="color: #4f46e5; text-align: center;">Password Reset Request</h2>
-        <p>You are receiving this email because a password reset request was initiated for your account.</p>
-        <p>Click on the button below to reset your password. This link is valid for 15 minutes.</p>
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${resetLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
-        </div>
-        <p>If you did not request this, please ignore this email.</p>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
-        <p style="font-size: 12px; color: #64748b; text-align: center;">EdTech Inc. · 123 Education Way</p>
-      </div>
-    `,
-  };
-
-  await transporter.sendMail(mailOptions);
-};
-
-// Send password change confirmation email
-const sendConfirmationEmail = async (email) => {
-  let transporter;
-  if (process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS) {
-    transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: parseInt(process.env.SMTP_PORT),
-      secure: parseInt(process.env.SMTP_PORT) === 465,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
-  } else {
-    console.log('--- MAIL SENDER FALLBACK ACTIVE ---');
-    console.log(`Confirmation email: Your password was changed sent to: ${email}`);
-    console.log('----------------------------------');
-    return true;
-  }
-
-  const mailOptions = {
-    from: process.env.SMTP_FROM || '"EdTech Support" <support@edtech.com>',
-    to: email,
-    subject: 'Your Password Was Changed',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-        <h2 style="color: #4f46e5; text-align: center;">Your Password Was Changed</h2>
-        <p>This is a confirmation that the password for your account has been successfully updated.</p>
-        <p>If you did this, no further action is required.</p>
-        <p style="color: #ef4444; font-weight: bold;">If you did NOT change your password, please contact support immediately.</p>
-        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
-        <p style="font-size: 12px; color: #64748b; text-align: center;">EdTech Inc. · 123 Education Way</p>
-      </div>
-    `,
-  };
-
-  await transporter.sendMail(mailOptions);
-};
+const {
+  sendResetEmail,
+  sendLockoutEmail,
+  sendPasswordChangedEmail
+} = require('../utils/sendEmail');
 
 const router = express.Router();
 
@@ -192,6 +114,7 @@ router.post('/login', async (req, res) => {
         user.isLocked = true;
         user.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
         await user.save();
+        await sendLockoutEmail(user.email, user.name);
         await logEvent({
           userId: user._id,
           userEmail: user.email,
@@ -337,10 +260,9 @@ router.post('/forgot-password', async (req, res) => {
       ipAddress: req.ip
     });
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-    const resetLink = `${clientUrl}/reset-password?token=${token}`;
+    const resetLink = `https://edtech-college-website.vercel.app/reset-password/${token}`;
 
-    await sendResetEmail(user.email, resetLink);
+    await sendResetEmail(user.email, user.name, resetLink);
 
     // Return generic message even for existing emails
     res.json({ message: 'If this email exists you will receive a reset link.' });
@@ -487,7 +409,7 @@ router.post('/reset-password', async (req, res) => {
     });
 
     // Send confirmation email
-    await sendConfirmationEmail(user.email);
+    await sendPasswordChangedEmail(user.email, user.name);
 
     res.json({ message: 'Password has been reset successfully. You can now login.' });
   } catch (error) {
