@@ -1,8 +1,28 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 
 const router = express.Router();
+
+function validatePasswordStrength(password) {
+  if (!password || password.length < 8) {
+    return 'Password must be at least 8 characters long.';
+  }
+  if (!/[A-Z]/.test(password)) {
+    return 'Password must contain at least one uppercase letter.';
+  }
+  if (!/[a-z]/.test(password)) {
+    return 'Password must contain at least one lowercase letter.';
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must contain at least one number.';
+  }
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    return 'Password must contain at least one special character.';
+  }
+  return null;
+}
 
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
@@ -15,8 +35,20 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'User already exists with this email.' });
     }
 
+    // Validate password complexity
+    const strengthError = validatePasswordStrength(password);
+    if (strengthError) {
+      return res.status(400).json({ message: strengthError });
+    }
+
     // Create new user
-    const user = await User.create({ name, email, password, role });
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role,
+      lastPasswordChange: new Date()
+    });
 
     // Generate JWT
     const token = jwt.sign(
@@ -36,6 +68,7 @@ router.post('/register', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        lastPasswordChange: user.lastPasswordChange || user.createdAt,
       },
     });
   } catch (error) {
@@ -60,6 +93,14 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: 'Invalid email or password.' });
+    }
+
+    // Check password expiry (90 days)
+    const lastChange = user.lastPasswordChange || user.createdAt || new Date();
+    const diffTime = new Date() - new Date(lastChange);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays >= 90) {
+      return res.status(403).json({ message: 'Password expired', email: user.email });
     }
 
     // Check if account is locked
@@ -118,6 +159,7 @@ router.post('/login', async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        lastPasswordChange: user.lastPasswordChange || user.createdAt,
       },
     });
   } catch (error) {
@@ -135,8 +177,10 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ message: 'Email and new password are required.' });
     }
 
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: 'Password must be at least 6 characters.' });
+    // Validate password complexity
+    const strengthError = validatePasswordStrength(newPassword);
+    if (strengthError) {
+      return res.status(400).json({ message: strengthError });
     }
 
     const user = await User.findOne({ email: email.toLowerCase().trim() });
@@ -144,11 +188,40 @@ router.post('/reset-password', async (req, res) => {
       return res.status(404).json({ message: 'User not found with this email.' });
     }
 
+    // Check password reuse (cannot reuse any of the last 3 passwords)
+    const isCurrentMatch = await user.comparePassword(newPassword);
+    if (isCurrentMatch) {
+      return res.status(400).json({ message: 'Cannot reuse any of your last 3 passwords.' });
+    }
+
+    let matchPrevious = false;
+    for (const oldHash of user.previousPasswords || []) {
+      const match = await bcrypt.compare(newPassword, oldHash);
+      if (match) {
+        matchPrevious = true;
+        break;
+      }
+    }
+    if (matchPrevious) {
+      return res.status(400).json({ message: 'Cannot reuse any of your last 3 passwords.' });
+    }
+
+    // Add old password to previousPasswords
+    if (!user.previousPasswords) {
+      user.previousPasswords = [];
+    }
+    user.previousPasswords.unshift(user.password);
+    if (user.previousPasswords.length > 3) {
+      user.previousPasswords = user.previousPasswords.slice(0, 3);
+    }
+
     user.password = newPassword;
+    user.lastPasswordChange = new Date();
     await user.save();
 
     res.json({ message: 'Password has been reset successfully. You can now login.' });
   } catch (error) {
+    console.error('Reset password error:', error);
     res.status(500).json({ message: 'Server error. Failed to reset password.' });
   }
 });

@@ -41,6 +41,19 @@ api.interceptors.response.use(
       }
       window.location.href = '/login';
     }
+    if (error.response?.status === 403) {
+      const msg = error.response.data?.message;
+      if (msg === 'Password expired') {
+        const expiredEmail = error.response.data?.email;
+        if (expiredEmail) {
+          localStorage.setItem('expired_email', expiredEmail);
+        }
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        alert('Your password has expired (90 days). You must change it to proceed.');
+        window.location.href = '/change-password';
+      }
+    }
     return Promise.reject(error);
   }
 );

@@ -1,10 +1,12 @@
+import { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
-import { ToastContainer } from './components/Toast';
+import { ToastContainer, showToast } from './components/Toast';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Unauthorized from './pages/Unauthorized';
+import ChangePassword from './pages/ChangePassword';
 import PrincipalDashboard from './pages/dashboards/PrincipalDashboard';
 import StaffDashboard from './pages/dashboards/StaffDashboard';
 import StudentDashboard from './pages/dashboards/StudentDashboard';
@@ -54,6 +56,23 @@ const HomeRedirect = () => {
 };
 
 function App() {
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user && user.lastPasswordChange) {
+      const lastChange = new Date(user.lastPasswordChange);
+      const diffTime = new Date() - lastChange;
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      const daysRemaining = 90 - diffDays;
+      if (daysRemaining <= 7 && daysRemaining > 0) {
+        const timer = setTimeout(() => {
+          showToast(`Your password will expire in ${daysRemaining} days. Please update it soon!`, 'warning');
+        }, 1200);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [user]);
+
   return (
     <>
       <ToastContainer />
@@ -65,6 +84,12 @@ function App() {
             <GuestRoute>
               <Login />
             </GuestRoute>
+          }
+        />
+        <Route
+          path="/change-password"
+          element={
+            <ChangePassword />
           }
         />
         <Route

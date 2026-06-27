@@ -17,6 +17,8 @@ export const showToast = (message, type = 'success') => {
     toast.success(message, options);
   } else if (type === 'error') {
     toast.error(message, options);
+  } else if (type === 'warning') {
+    toast(message, { ...options, icon: '⚠️' });
   } else {
     toast(message, options);
   }

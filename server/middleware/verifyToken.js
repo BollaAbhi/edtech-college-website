@@ -19,6 +19,14 @@ const verifyToken = async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid or expired token.' });
     }
 
+    // Check password expiry (90 days)
+    const lastChange = user.lastPasswordChange || user.createdAt || new Date();
+    const diffTime = new Date() - new Date(lastChange);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays >= 90) {
+      return res.status(403).json({ message: 'Password expired' });
+    }
+
     // Reject if activeToken does not match (session invalidated by another login)
     if (user.activeToken && user.activeToken !== token) {
       return res.status(401).json({ message: 'Logged in from another device' });
