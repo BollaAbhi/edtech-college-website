@@ -25,6 +25,9 @@ router.post('/register', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    user.activeToken = token;
+    await user.save();
+
     res.status(201).json({
       message: 'User registered successfully.',
       token,
@@ -96,7 +99,6 @@ router.post('/login', async (req, res) => {
     user.loginAttempts = 0;
     user.isLocked = false;
     user.lockUntil = undefined;
-    await user.save();
 
     // Generate JWT with role in payload
     const token = jwt.sign(
@@ -104,6 +106,9 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    user.activeToken = token;
+    await user.save();
 
     res.json({
       message: 'Login successful.',

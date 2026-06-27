@@ -33,8 +33,12 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const msg = error.response.data?.message;
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      if (msg === 'Logged in from another device') {
+        alert('Logged in from another device. This session is no longer active.');
+      }
       window.location.href = '/login';
     }
     return Promise.reject(error);

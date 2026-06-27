@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -11,6 +12,18 @@ const verifyToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Fetch the user to check their active token
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid or expired token.' });
+    }
+
+    // Reject if activeToken does not match (session invalidated by another login)
+    if (user.activeToken && user.activeToken !== token) {
+      return res.status(401).json({ message: 'Logged in from another device' });
+    }
+
     req.user = decoded;
     next();
   } catch (error) {
