@@ -48,14 +48,14 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const res = await api.post('/api/auth/reset-password', { email: resetEmail, newPassword });
-      showToast(res.data?.message || 'Password reset successful!', 'success');
+      const res = await api.post('/api/auth/forgot-password', { email: resetEmail });
+      showToast(res.data?.message || 'Password reset link sent!', 'success');
       setIsForgot(false);
       setEmail(resetEmail);
       setPassword('');
     } catch (err) {
       console.error('Reset password error:', err);
-      setError(err.response?.data?.message || 'Failed to reset password. Please try again.');
+      setError(err.response?.data?.message || 'Failed to send reset link. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -110,8 +110,8 @@ const Login = () => {
           {isForgot ? (
             <div>
               <div className="mb-8">
-                <h1 className="text-3xl font-bold text-white mb-2">Reset password</h1>
-                <p className="text-slate-400">Enter your email and a new password to reset it</p>
+                <h1 className="text-3xl font-bold text-white mb-2">Forgot password</h1>
+                <p className="text-slate-400">Enter your email to receive a password reset link</p>
               </div>
 
               {error && (
@@ -140,23 +140,6 @@ const Login = () => {
                   />
                 </div>
 
-                {/* New Password */}
-                <div>
-                  <label htmlFor="new-password" className="block text-sm font-medium text-slate-300 mb-2">
-                    New Password
-                  </label>
-                  <input
-                    id="new-password"
-                    type="password"
-                    required
-                    minLength={6}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-3 bg-slate-900 border border-slate-800 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all duration-200"
-                  />
-                </div>
-
                 {/* Submit */}
                 <button
                   id="reset-button"
@@ -167,10 +150,10 @@ const Login = () => {
                   {isLoading ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      Resetting password...
+                      Sending link...
                     </>
                   ) : (
-                    'Reset Password'
+                    'Send Reset Link'
                   )}
                 </button>
               </form>

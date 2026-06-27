@@ -7,6 +7,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Unauthorized from './pages/Unauthorized';
 import ChangePassword from './pages/ChangePassword';
+import ResetPassword from './pages/ResetPassword';
 import PrincipalDashboard from './pages/dashboards/PrincipalDashboard';
 import StaffDashboard from './pages/dashboards/StaffDashboard';
 import StudentDashboard from './pages/dashboards/StudentDashboard';
@@ -90,6 +91,12 @@ function App() {
           path="/change-password"
           element={
             <ChangePassword />
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <ResetPassword />
           }
         />
         <Route

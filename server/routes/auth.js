@@ -1,7 +1,52 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
 const User = require('../models/User');
+
+// Nodemailer setup for sending password reset emails
+const sendResetEmail = async (email, resetLink) => {
+  let transporter;
+  if (process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT),
+      secure: parseInt(process.env.SMTP_PORT) === 465,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  } else {
+    console.log('--- MAIL SENDER FALLBACK ACTIVE ---');
+    console.log(`Sending password reset link to: ${email}`);
+    console.log(`Reset Link: ${resetLink}`);
+    console.log('----------------------------------');
+    return true;
+  }
+
+  const mailOptions = {
+    from: process.env.SMTP_FROM || '"EdTech Support" <support@edtech.com>',
+    to: email,
+    subject: 'Password Reset Request',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #4f46e5; text-align: center;">Password Reset Request</h2>
+        <p>You are receiving this email because a password reset request was initiated for your account.</p>
+        <p>Click on the button below to reset your password. This link is valid for 15 minutes.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="background-color: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Reset Password</a>
+        </div>
+        <p>If you did not request this, please ignore this email.</p>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+        <p style="font-size: 12px; color: #64748b; text-align: center;">EdTech Inc. · 123 Education Way</p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
 
 const router = express.Router();
 
@@ -168,13 +213,71 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required.' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) {
+      // Return a generic success to prevent account enumeration attacks
+      return res.json({ message: 'If your email is registered, a reset link has been sent.' });
+    }
+
+    // Generate random 32-byte hex token
+    const token = crypto.randomBytes(32).toString('hex');
+    user.resetToken = token;
+    user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    await user.save();
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const resetLink = `${clientUrl}/reset-password?token=${token}`;
+
+    await sendResetEmail(user.email, resetLink);
+
+    res.json({ message: 'Reset link has been sent to your email.' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ message: 'Server error. Failed to send reset email.' });
+  }
+});
+
+// POST /api/auth/verify-reset-token
+router.post('/verify-reset-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ message: 'Token is required.' });
+    }
+
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired reset token.' });
+    }
+
+    res.json({ message: 'Token is valid.', email: user.email });
+  } catch (error) {
+    console.error('Verify token error:', error);
+    res.status(500).json({ message: 'Server error. Failed to verify token.' });
+  }
+});
+
 // POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   try {
-    const { email, newPassword } = req.body;
+    const { token, newPassword } = req.body;
 
-    if (!email || !newPassword) {
-      return res.status(400).json({ message: 'Email and new password are required.' });
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'Token and new password are required.' });
     }
 
     // Validate password complexity
@@ -183,9 +286,14 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ message: strengthError });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    // Find user with matching active, unexpired reset token
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: new Date() }
+    });
+
     if (!user) {
-      return res.status(404).json({ message: 'User not found with this email.' });
+      return res.status(400).json({ message: 'Invalid or expired reset token.' });
     }
 
     // Check password reuse (cannot reuse any of the last 3 passwords)
@@ -215,8 +323,14 @@ router.post('/reset-password', async (req, res) => {
       user.previousPasswords = user.previousPasswords.slice(0, 3);
     }
 
+    // Reset password, invalidate token, and clear sessions
     user.password = newPassword;
     user.lastPasswordChange = new Date();
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    user.activeToken = undefined; // Invalidate all existing sessions
+    user.refreshToken = undefined;
+
     await user.save();
 
     res.json({ message: 'Password has been reset successfully. You can now login.' });
