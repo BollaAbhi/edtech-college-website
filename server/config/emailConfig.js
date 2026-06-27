@@ -1,9 +1,9 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  host: process.env.EMAIL_HOST || 'smtp-relay.brevo.com',
+  port: process.env.EMAIL_PORT || 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -12,15 +12,10 @@ const transporter = nodemailer.createTransport({
 
 transporter.verify((error, success) => {
   if (error) {
-    console.error('SMTP verify error code:', 
-      error.code)
-    console.error('SMTP verify error response:', 
-      error.response)
-    console.error('SMTP verify full error:', 
-      JSON.stringify(error))
+    console.error('SMTP Error:', error.message)
   } else {
-    console.log('SMTP server is ready')
+    console.log('✅ SMTP Ready to send!')
   }
-})
+});
 
 module.exports = transporter;
