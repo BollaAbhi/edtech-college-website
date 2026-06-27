@@ -195,4 +195,6 @@ router.post('/:id/reset-password', async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: 'Failed to reset staff password.' });
   }
+});
+
 module.exports = router;

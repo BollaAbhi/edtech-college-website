@@ -282,7 +282,7 @@ const seedDatabase = async () => {
       // Alex Rivera
       { studentId: alexRivera._id, subject: 'Mathematics', staffId: davidMiller._id, class: '10 A', examType: 'midterm', marksObtained: 88, totalMarks: 100, date: '2026-06-15' },
       { studentId: alexRivera._id, subject: 'Chemistry', staffId: elenaRostova._id, class: '10 A', examType: 'midterm', marksObtained: 92, totalMarks: 100, date: '2026-06-16' },
-      
+
       // Emily Chen
       { studentId: emilyChen._id, subject: 'Mathematics', staffId: davidMiller._id, class: '10 A', examType: 'midterm', marksObtained: 75, totalMarks: 100, date: '2026-06-15' },
       { studentId: emilyChen._id, subject: 'Chemistry', staffId: elenaRostova._id, class: '10 A', examType: 'midterm', marksObtained: 81, totalMarks: 100, date: '2026-06-16' },
