@@ -53,6 +53,24 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
+// Test email route
+app.get('/api/test-email', async (req, res) => {
+  try {
+    const transporter = require('./config/emailConfig');
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: process.env.EMAIL_USER,
+      subject: 'EdTech - SMTP Test Email',
+      text: 'This is a test email to verify SMTP configuration.'
+    };
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true, message: `Test email sent to ${process.env.EMAIL_USER}` });
+  } catch (err) {
+    console.error('SMTP Error:', JSON.stringify(err));
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Serve static assets in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../client/dist')));
