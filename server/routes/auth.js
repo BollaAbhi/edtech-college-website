@@ -436,14 +436,14 @@ router.post('/reset-password', async (req, res) => {
 
 // POST /api/auth/change-password — Authenticated or Unauthenticated password update
 router.post('/change-password', async (req, res) => {
+  let user;
+  let isMatch = false;
   try {
     const { email, currentPassword, newPassword } = req.body;
 
     if (!newPassword) {
       return res.status(400).json({ message: 'New password is required.' });
     }
-
-    let user;
 
     // 1. Try to authenticate via Bearer token
     const authHeader = req.headers.authorization;
@@ -464,7 +464,6 @@ router.post('/change-password', async (req, res) => {
       }
     }
 
-    console.log("Change password attempt");
     console.log("User found:", !!user);
 
     if (!user) {
@@ -475,8 +474,8 @@ router.post('/change-password', async (req, res) => {
       return res.status(400).json({ message: 'Current password is required.' });
     }
 
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
-    console.log("Password match:", isMatch);
+    isMatch = await bcrypt.compare(currentPassword, user.password);
+    console.log("Current password match:", isMatch);
 
     if (!isMatch) {
       return res.status(400).json({ message: 'Current password is incorrect' });
@@ -547,8 +546,11 @@ router.post('/change-password', async (req, res) => {
     await sendPasswordChangedEmail(user.email, user.name);
 
     res.json({ message: 'Password successfully changed' });
-  } catch (error) {
-    console.error('Change password error:', error);
+  } catch (err) {
+    console.log("User found:", !!user);
+    console.log("Current password match:", isMatch);
+    console.log("Error if any:", err);
+    console.error('Change password error:', err);
     res.status(500).json({ message: 'Server error. Failed to change password.' });
   }
 });

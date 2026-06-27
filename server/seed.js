@@ -8,6 +8,7 @@ try {
 
 const path = require('path');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 // Load environment variables
 require('dotenv').config({ path: path.join(__dirname, '.env') });
@@ -53,7 +54,7 @@ const seedDatabase = async () => {
     const principalUser = new User({
       name: 'Principal Admin',
       email: 'abhilashbolla846@gmail.com',
-      password: 'Demo@1234',
+      password: await bcrypt.hash('Demo@1234', 10),
       role: 'principal'
     });
     await principalUser.save();
@@ -89,7 +90,7 @@ const seedDatabase = async () => {
       const user = new User({
         name: s.name,
         email: s.email,
-        password: 'Demo@1234',
+        password: await bcrypt.hash('Demo@1234', 10),
         role: 'staff'
       });
       const savedUser = await user.save();
@@ -167,7 +168,7 @@ const seedDatabase = async () => {
       const user = new User({
         name: st.name,
         email: st.email,
-        password: 'Demo@1234',
+        password: await bcrypt.hash('Demo@1234', 10),
         role: 'student'
       });
       const savedUser = await user.save();
