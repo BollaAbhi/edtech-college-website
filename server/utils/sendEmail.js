@@ -1,28 +1,23 @@
-const transporter = require('../config/emailConfig');
+const sendEmail = require('../config/emailConfig');
 
 const sendResetEmail = async (toEmail, userName, resetLink) => {
   try {
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: toEmail,
-      subject: 'EdTech - Password Reset Request',
-      html: `
-        <h2>Hello ${userName},</h2>
-        <p>You requested a password reset.</p>
-        <p>Click button below to reset:</p>
-        <a href="${resetLink}" 
-           style="background:#6B21A8;
-           color:white;padding:12px 24px;
-           border-radius:8px;
-           text-decoration:none;
-           display:inline-block;">
-           Reset Password
-        </a>
-        <p>Link expires in 15 minutes.</p>
-        <p>If you didn't request this, ignore this email.</p>
-      `
-    };
-    await transporter.sendMail(mailOptions);
+    const htmlContent = `
+      <h2>Hello ${userName},</h2>
+      <p>You requested a password reset.</p>
+      <p>Click button below to reset:</p>
+      <a href="${resetLink}" 
+         style="background:#6B21A8;
+         color:white;padding:12px 24px;
+         border-radius:8px;
+         text-decoration:none;
+         display:inline-block;">
+         Reset Password
+      </a>
+      <p>Link expires in 15 minutes.</p>
+      <p>If you didn't request this, ignore this email.</p>
+    `;
+    await sendEmail(toEmail, userName, 'EdTech - Password Reset Request', htmlContent);
     console.log(`Reset email sent successfully to ${toEmail}`);
     return true;
   } catch (error) {
@@ -37,18 +32,13 @@ const sendResetEmail = async (toEmail, userName, resetLink) => {
 
 const sendLockoutEmail = async (toEmail, userName) => {
   try {
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: toEmail,
-      subject: 'EdTech - Account Locked Notification',
-      html: `
-        <h2>Hello ${userName},</h2>
-        <p>Your account has been locked due to 5 consecutive failed login attempts.</p>
-        <p>Your account will remain locked for 30 minutes.</p>
-        <p>If you did not perform these attempts, please contact the administrator immediately.</p>
-      `
-    };
-    await transporter.sendMail(mailOptions);
+    const htmlContent = `
+      <h2>Hello ${userName},</h2>
+      <p>Your account has been locked due to 5 consecutive failed login attempts.</p>
+      <p>Your account will remain locked for 30 minutes.</p>
+      <p>If you did not perform these attempts, please contact the administrator immediately.</p>
+    `;
+    await sendEmail(toEmail, userName, 'EdTech - Account Locked Notification', htmlContent);
     console.log(`Lockout email sent successfully to ${toEmail}`);
     return true;
   } catch (error) {
@@ -63,18 +53,13 @@ const sendLockoutEmail = async (toEmail, userName) => {
 
 const sendPasswordChangedEmail = async (toEmail, userName) => {
   try {
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: toEmail,
-      subject: 'EdTech - Password Changed Confirmation',
-      html: `
-        <h2>Hello ${userName},</h2>
-        <p>This is confirmation that the password for your account was successfully changed.</p>
-        <p>If you did this, you can ignore this confirmation email.</p>
-        <p style="color:red; font-weight:bold;">If you did NOT change your password, please contact the administrator immediately.</p>
-      `
-    };
-    await transporter.sendMail(mailOptions);
+    const htmlContent = `
+      <h2>Hello ${userName},</h2>
+      <p>This is confirmation that the password for your account was successfully changed.</p>
+      <p>If you did this, you can ignore this confirmation email.</p>
+      <p style="color:red; font-weight:bold;">If you did NOT change your password, please contact the administrator immediately.</p>
+    `;
+    await sendEmail(toEmail, userName, 'EdTech - Password Changed Confirmation', htmlContent);
     console.log(`Password change confirmation email sent to ${toEmail}`);
     return true;
   } catch (error) {
@@ -91,28 +76,23 @@ const sendWelcomeEmail = async (toEmail, userName, tempPassword, role) => {
   try {
     const clientUrl = process.env.CLIENT_URL || 'https://edtech-college-website.vercel.app';
     const loginLink = `${clientUrl}/login`;
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: toEmail,
-      subject: 'Welcome to EdTech - Your Account Details',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-          <h2 style="color: #4f46e5; text-align: center;">Welcome to EdTech!</h2>
-          <p>Hello <strong>${userName}</strong>,</p>
-          <p>Your account has been successfully created as a <strong>${role}</strong>.</p>
-          <p>Here are your account login details:</p>
-          <div style="background-color: #f8fafc; border: 1px solid #e2e8e5; border-radius: 6px; padding: 15px; margin: 20px 0;">
-            <p style="margin: 0 0 8px 0;"><strong>Login Page:</strong> <a href="${loginLink}" style="color: #4f46e5; font-weight: bold;">${loginLink}</a></p>
-            <p style="margin: 0 0 8px 0;"><strong>Username / Email:</strong> ${toEmail}</p>
-            <p style="margin: 0;"><strong>Temporary Password:</strong> <code style="background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${tempPassword}</code></p>
-          </div>
-          <p style="color: #ea580c; font-weight: bold;">Please change your password on first login to secure your account.</p>
-          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
-          <p style="font-size: 12px; color: #64748b; text-align: center;">EdTech Inc. · 123 Education Way</p>
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #4f46e5; text-align: center;">Welcome to EdTech!</h2>
+        <p>Hello <strong>${userName}</strong>,</p>
+        <p>Your account has been successfully created as a <strong>${role}</strong>.</p>
+        <p>Here are your account login details:</p>
+        <div style="background-color: #f8fafc; border: 1px solid #e2e8e5; border-radius: 6px; padding: 15px; margin: 20px 0;">
+          <p style="margin: 0 0 8px 0;"><strong>Login Page:</strong> <a href="${loginLink}" style="color: #4f46e5; font-weight: bold;">${loginLink}</a></p>
+          <p style="margin: 0 0 8px 0;"><strong>Username / Email:</strong> ${toEmail}</p>
+          <p style="margin: 0;"><strong>Temporary Password:</strong> <code style="background-color: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-weight: bold;">${tempPassword}</code></p>
         </div>
-      `
-    };
-    await transporter.sendMail(mailOptions);
+        <p style="color: #ea580c; font-weight: bold;">Please change your password on first login to secure your account.</p>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+        <p style="font-size: 12px; color: #64748b; text-align: center;">EdTech Inc. · 123 Education Way</p>
+      </div>
+    `;
+    await sendEmail(toEmail, userName, 'Welcome to EdTech - Your Account Details', htmlContent);
     console.log(`Welcome email sent successfully to ${toEmail}`);
     return true;
   } catch (error) {

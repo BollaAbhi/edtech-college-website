@@ -56,15 +56,15 @@ app.get('/api/health', (req, res) => {
 // Test email route
 app.get('/api/test-email', async (req, res) => {
   try {
-    const transporter = require('./config/emailConfig');
-    const mailOptions = {
-      from: process.env.EMAIL_USER,
-      to: process.env.EMAIL_USER,
-      subject: 'EdTech - SMTP Test Email',
-      text: 'This is a test email to verify SMTP configuration.'
-    };
-    await transporter.sendMail(mailOptions);
-    res.json({ success: true, message: `Test email sent to ${process.env.EMAIL_USER}` });
+    const sendEmail = require('./config/emailConfig');
+    const toEmail = process.env.EMAIL_USER || 'servicesedtech263@gmail.com';
+    await sendEmail(
+      toEmail,
+      'Test User',
+      'EdTech - SMTP Test Email',
+      '<p>This is a test email to verify SMTP configuration.</p>'
+    );
+    res.json({ success: true, message: `Test email sent to ${toEmail}` });
   } catch (err) {
     console.error('SMTP Error:', JSON.stringify(err));
     res.status(500).json({ success: false, error: err.message });
