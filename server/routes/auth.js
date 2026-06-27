@@ -49,6 +49,45 @@ const sendResetEmail = async (email, resetLink) => {
   await transporter.sendMail(mailOptions);
 };
 
+// Send password change confirmation email
+const sendConfirmationEmail = async (email) => {
+  let transporter;
+  if (process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS) {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT),
+      secure: parseInt(process.env.SMTP_PORT) === 465,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+  } else {
+    console.log('--- MAIL SENDER FALLBACK ACTIVE ---');
+    console.log(`Confirmation email: Your password was changed sent to: ${email}`);
+    console.log('----------------------------------');
+    return true;
+  }
+
+  const mailOptions = {
+    from: process.env.SMTP_FROM || '"EdTech Support" <support@edtech.com>',
+    to: email,
+    subject: 'Your Password Was Changed',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #4f46e5; text-align: center;">Your Password Was Changed</h2>
+        <p>This is a confirmation that the password for your account has been successfully updated.</p>
+        <p>If you did this, no further action is required.</p>
+        <p style="color: #ef4444; font-weight: bold;">If you did NOT change your password, please contact support immediately.</p>
+        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
+        <p style="font-size: 12px; color: #64748b; text-align: center;">EdTech Inc. · 123 Education Way</p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
 const router = express.Router();
 
 function validatePasswordStrength(password) {
@@ -285,10 +324,57 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(400).json({ message: 'Email is required.' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await User.findOne({ email: normalizedEmail });
+
     if (!user) {
-      // Return a generic success to prevent account enumeration attacks
-      return res.json({ message: 'If your email is registered, a reset link has been sent.' });
+      // Log failed reset attempt for audit
+      await logEvent({
+        userEmail: normalizedEmail,
+        action: 'PASSWORD_RESET_ATTEMPT',
+        success: false,
+        details: 'Forgot password requested for non-existent email address',
+        ipAddress: req.ip
+      });
+      // Generic message to prevent email harvesting
+      return res.json({ message: 'If this email exists you will receive a reset link.' });
+    }
+
+    // Rate limiting check: Max 3 requests per hour
+    if (user.resetRequestBlockUntil && new Date() < user.resetRequestBlockUntil) {
+      await logEvent({
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: 'PASSWORD_RESET_ATTEMPT',
+        success: false,
+        details: 'Forgot password request blocked: Rate limit block active',
+        ipAddress: req.ip
+      });
+      return res.status(429).json({ message: 'Too many password reset requests. Please try again in 1 hour.' });
+    }
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    if (!user.lastResetRequestTime || user.lastResetRequestTime < oneHourAgo) {
+      user.resetRequestsCount = 1;
+    } else {
+      user.resetRequestsCount = (user.resetRequestsCount || 0) + 1;
+    }
+    user.lastResetRequestTime = new Date();
+
+    if (user.resetRequestsCount > 3) {
+      user.resetRequestBlockUntil = new Date(Date.now() + 60 * 60 * 1000); // Block for 1 hour
+      await user.save();
+      await logEvent({
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: 'PASSWORD_RESET_ATTEMPT',
+        success: false,
+        details: 'Forgot password blocked: Exceeded 3 requests per hour limit. Blocked for 1 hour.',
+        ipAddress: req.ip
+      });
+      return res.status(429).json({ message: 'Too many password reset requests. Please try again in 1 hour.' });
     }
 
     // Generate random 32-byte hex token
@@ -297,15 +383,26 @@ router.post('/forgot-password', async (req, res) => {
     user.resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
     await user.save();
 
+    await logEvent({
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: 'PASSWORD_RESET_ATTEMPT',
+      success: true,
+      details: 'Forgot password reset token generated and email dispatched',
+      ipAddress: req.ip
+    });
+
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const resetLink = `${clientUrl}/reset-password?token=${token}`;
 
     await sendResetEmail(user.email, resetLink);
 
-    res.json({ message: 'Reset link has been sent to your email.' });
+    // Return generic message even for existing emails
+    res.json({ message: 'If this email exists you will receive a reset link.' });
   } catch (error) {
     console.error('Forgot password error:', error);
-    res.status(500).json({ message: 'Server error. Failed to send reset email.' });
+    res.status(500).json({ message: 'Server error. Failed to process request.' });
   }
 });
 
@@ -315,7 +412,13 @@ router.post('/verify-reset-token', async (req, res) => {
     const { token } = req.body;
 
     if (!token) {
-      return res.status(400).json({ message: 'Token is required.' });
+      await logEvent({
+        action: 'PASSWORD_RESET_VERIFY',
+        success: false,
+        details: 'Token verification failed: No token provided',
+        ipAddress: req.ip
+      });
+      return res.status(400).json({ message: 'Invalid or expired reset link' });
     }
 
     const user = await User.findOne({
@@ -324,13 +427,29 @@ router.post('/verify-reset-token', async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired reset token.' });
+      await logEvent({
+        action: 'PASSWORD_RESET_VERIFY',
+        success: false,
+        details: 'Token verification failed: Token not found or expired',
+        ipAddress: req.ip
+      });
+      return res.status(400).json({ message: 'Invalid or expired reset link' });
     }
+
+    await logEvent({
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: 'PASSWORD_RESET_VERIFY',
+      success: true,
+      details: 'Token verification succeeded',
+      ipAddress: req.ip
+    });
 
     res.json({ message: 'Token is valid.', email: user.email });
   } catch (error) {
     console.error('Verify token error:', error);
-    res.status(500).json({ message: 'Server error. Failed to verify token.' });
+    res.status(500).json({ message: 'Invalid or expired reset link' });
   }
 });
 
@@ -356,7 +475,13 @@ router.post('/reset-password', async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired reset token.' });
+      await logEvent({
+        action: 'PASSWORD_RESET_SUBMIT',
+        success: false,
+        details: 'Password reset failed: Invalid or expired token',
+        ipAddress: req.ip
+      });
+      return res.status(400).json({ message: 'Invalid or expired reset link' });
     }
 
     // Check password reuse (cannot reuse any of the last 3 passwords)
@@ -416,6 +541,9 @@ router.post('/reset-password', async (req, res) => {
       details: 'Invalidated all existing sessions on password reset',
       ipAddress: req.ip
     });
+
+    // Send confirmation email
+    await sendConfirmationEmail(user.email);
 
     res.json({ message: 'Password has been reset successfully. You can now login.' });
   } catch (error) {

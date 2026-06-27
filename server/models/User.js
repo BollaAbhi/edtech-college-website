@@ -53,6 +53,16 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
+    resetRequestsCount: {
+      type: Number,
+      default: 0,
+    },
+    lastResetRequestTime: {
+      type: Date,
+    },
+    resetRequestBlockUntil: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );
