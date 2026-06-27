@@ -4,7 +4,6 @@ import { useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ToastContainer, showToast } from './components/Toast';
 import Login from './pages/Login';
-import Register from './pages/Register';
 import Unauthorized from './pages/Unauthorized';
 import ChangePassword from './pages/ChangePassword';
 import ResetPassword from './pages/ResetPassword';
@@ -100,14 +99,7 @@ function App() {
             <ResetPassword />
           }
         />
-        <Route
-          path="/register"
-          element={
-            <GuestRoute>
-              <Register />
-            </GuestRoute>
-          }
-        />
+
         <Route path="/unauthorized" element={<Unauthorized />} />
 
         {/* Principal routes */}
