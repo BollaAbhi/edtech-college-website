@@ -51,9 +51,9 @@ const seedDatabase = async () => {
     // 1. Create Principal Account
     console.log('Seeding Principal...');
     const principalUser = new User({
-      name: 'Dr. Sarah Jenkins',
-      email: 'principal@demo.com',
-      password: 'demo1234',
+      name: 'Principal Admin',
+      email: 'abhilashbolla846@gmail.com',
+      password: 'Demo@1234',
       role: 'principal'
     });
     await principalUser.save();
@@ -62,8 +62,8 @@ const seedDatabase = async () => {
     console.log('Seeding Staff records...');
     const staffData = [
       {
-        name: 'Prof. David Miller',
-        email: 'staff@demo.com', // Demo staff
+        name: 'Staff Member',
+        email: 'abhilashbolla0@gmail.com', // Demo staff
         subjectsAssigned: ['Mathematics', 'Physics'],
         classesAssigned: ['10 A', '10 B'],
         phone: '+1 (555) 019-2834'
@@ -86,11 +86,10 @@ const seedDatabase = async () => {
 
     const staffDocs = [];
     for (const s of staffData) {
-      // Create User
       const user = new User({
         name: s.name,
         email: s.email,
-        password: 'demo1234',
+        password: 'Demo@1234',
         role: 'staff'
       });
       const savedUser = await user.save();
@@ -116,8 +115,8 @@ const seedDatabase = async () => {
     console.log('Seeding Student records...');
     const studentData = [
       {
-        name: 'Alex Rivera',
-        email: 'student@demo.com', // Demo student
+        name: 'Student User',
+        email: 'joguyashwanth009@gmail.com', // Demo student
         class: '10',
         division: 'A',
         rollNo: '01',
@@ -168,7 +167,7 @@ const seedDatabase = async () => {
       const user = new User({
         name: st.name,
         email: st.email,
-        password: 'demo1234',
+        password: 'Demo@1234',
         role: 'student'
       });
       const savedUser = await user.save();
