@@ -19,6 +19,7 @@ import PrincipalTimetable from './pages/principal/Timetable';
 import PrincipalNotices from './pages/principal/Notices';
 import PrincipalFees from './pages/principal/Fees';
 import PrincipalLeaveRequests from './pages/principal/LeaveRequests';
+import PrincipalAuditLogs from './pages/principal/AuditLogs';
 import StaffAttendance from './pages/staff/Attendance';
 import StaffMarks from './pages/staff/Marks';
 import StaffTimetable from './pages/staff/Timetable';
@@ -180,6 +181,14 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={['principal']}>
               <PrincipalLeaveRequests />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/principal/audit-logs"
+          element={
+            <ProtectedRoute allowedRoles={['principal']}>
+              <PrincipalAuditLogs />
             </ProtectedRoute>
           }
         />

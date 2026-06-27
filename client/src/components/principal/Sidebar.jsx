@@ -12,6 +12,7 @@ const sidebarLinks = [
   { to: '/principal/notices', label: 'Notices', icon: '📢' },
   { to: '/principal/fees', label: 'Fees', icon: '💰' },
   { to: '/principal/leave-requests', label: 'Leave Requests', icon: '✉️' },
+  { to: '/principal/audit-logs', label: 'Audit Logs', icon: '🛡️' },
 ];
 
 const Sidebar = () => {

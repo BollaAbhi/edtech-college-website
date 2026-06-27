@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const User = require('../models/User');
+const logEvent = require('../utils/auditLogger');
 
 // Nodemailer setup for sending password reset emails
 const sendResetEmail = async (email, resetLink) => {
@@ -137,6 +138,13 @@ router.post('/login', async (req, res) => {
     // Find user by email
     const user = await User.findOne({ email });
     if (!user) {
+      await logEvent({
+        userEmail: email,
+        action: 'LOGIN_FAILED',
+        success: false,
+        details: 'User not found',
+        ipAddress: req.ip
+      });
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
@@ -145,6 +153,15 @@ router.post('/login', async (req, res) => {
     const diffTime = new Date() - new Date(lastChange);
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     if (diffDays >= 90) {
+      await logEvent({
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: 'LOGIN_FAILED',
+        success: false,
+        details: 'Rejected: Password expired',
+        ipAddress: req.ip
+      });
       return res.status(403).json({ message: 'Password expired', email: user.email });
     }
 
@@ -157,8 +174,26 @@ router.post('/login', async (req, res) => {
         user.loginAttempts = 0;
         user.lockUntil = undefined;
         await user.save();
+        await logEvent({
+          userId: user._id,
+          userEmail: user.email,
+          userRole: user.role,
+          action: 'ACCOUNT_UNLOCK',
+          success: true,
+          details: 'Account automatically unlocked',
+          ipAddress: req.ip
+        });
       } else {
         // Still locked
+        await logEvent({
+          userId: user._id,
+          userEmail: user.email,
+          userRole: user.role,
+          action: 'LOGIN_FAILED',
+          success: false,
+          details: 'Rejected: Account currently locked',
+          ipAddress: req.ip
+        });
         return res.status(403).json({ message: 'Account locked for 30 minutes.' });
       }
     }
@@ -174,10 +209,28 @@ router.post('/login', async (req, res) => {
         user.isLocked = true;
         user.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes from now
         await user.save();
+        await logEvent({
+          userId: user._id,
+          userEmail: user.email,
+          userRole: user.role,
+          action: 'ACCOUNT_LOCKOUT',
+          success: false,
+          details: 'Account locked due to 5 consecutive failed login attempts',
+          ipAddress: req.ip
+        });
         return res.status(403).json({ message: 'Account locked for 30 minutes.' });
       }
 
       await user.save();
+      await logEvent({
+        userId: user._id,
+        userEmail: user.email,
+        userRole: user.role,
+        action: 'LOGIN_FAILED',
+        success: false,
+        details: `Failed password validation. Attempt #${user.loginAttempts}`,
+        ipAddress: req.ip
+      });
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
@@ -195,6 +248,16 @@ router.post('/login', async (req, res) => {
 
     user.activeToken = token;
     await user.save();
+
+    await logEvent({
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: 'LOGIN_SUCCESS',
+      success: true,
+      details: 'Login successful',
+      ipAddress: req.ip
+    });
 
     res.json({
       message: 'Login successful.',
@@ -332,6 +395,27 @@ router.post('/reset-password', async (req, res) => {
     user.refreshToken = undefined;
 
     await user.save();
+
+    // Log password reset and session invalidation
+    await logEvent({
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: 'PASSWORD_RESET',
+      success: true,
+      details: 'Password reset successful via forgot-password token',
+      ipAddress: req.ip
+    });
+
+    await logEvent({
+      userId: user._id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: 'SESSION_INVALIDATION',
+      success: true,
+      details: 'Invalidated all existing sessions on password reset',
+      ipAddress: req.ip
+    });
 
     res.json({ message: 'Password has been reset successfully. You can now login.' });
   } catch (error) {

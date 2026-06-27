@@ -46,6 +46,7 @@ app.use('/api/timetable', require('./routes/timetable'));
 app.use('/api/notices', require('./routes/notices'));
 app.use('/api/fees', require('./routes/fees'));
 app.use('/api/leave', require('./routes/leaves'));
+app.use('/api/audit', require('./routes/audit'));
 
 // Health check route
 app.get('/api/health', (req, res) => {
