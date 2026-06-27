@@ -60,8 +60,8 @@ const ResetPassword = () => {
 
     setSubmitting(true);
     try {
-      const res = await api.post('/api/auth/reset-password-secure', { token, newPassword });
-      showToast(res.data?.message || 'Password reset successfully! Please log in.', 'success');
+      const res = await api.post('/api/auth/reset-password', { token, newPassword });
+      showToast('Password reset successful Please login with new password', 'success');
       navigate('/login');
     } catch (err) {
       console.error('Password reset error:', err);
