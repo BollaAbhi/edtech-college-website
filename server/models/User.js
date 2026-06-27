@@ -26,6 +26,33 @@ const userSchema = new mongoose.Schema(
       enum: ['principal', 'staff', 'student'],
       default: 'student',
     },
+    loginAttempts: {
+      type: Number,
+      default: 0,
+    },
+    lockUntil: {
+      type: Date,
+    },
+    isLocked: {
+      type: Boolean,
+      default: false,
+    },
+    activeToken: {
+      type: String,
+    },
+    resetToken: {
+      type: String,
+    },
+    resetTokenExpiry: {
+      type: Date,
+    },
+    lastPasswordChange: {
+      type: Date,
+    },
+    previousPasswords: [String],
+    refreshToken: {
+      type: String,
+    },
   },
   { timestamps: true }
 );
