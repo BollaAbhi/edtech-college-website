@@ -10,4 +10,17 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('SMTP verify error code:', 
+      error.code)
+    console.error('SMTP verify error response:', 
+      error.response)
+    console.error('SMTP verify full error:', 
+      JSON.stringify(error))
+  } else {
+    console.log('SMTP server is ready')
+  }
+})
+
 module.exports = transporter;
