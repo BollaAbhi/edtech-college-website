@@ -457,30 +457,29 @@ router.post('/change-password', async (req, res) => {
       }
     }
 
-    // 2. If not authenticated, look up by email and check currentPassword
+    // 2. If not authenticated or not found via token, look up by email
     if (!user) {
-      if (!email || !currentPassword) {
-        return res.status(400).json({ message: 'Email and current password are required.' });
+      if (email) {
+        user = await User.findOne({ email: email.toLowerCase().trim() });
       }
-      user = await User.findOne({ email: email.toLowerCase().trim() });
-      if (!user) {
-        return res.status(404).json({ message: 'User not found.' });
-      }
-      const isMatch = await user.comparePassword(currentPassword);
-      if (!isMatch) {
-        return res.status(400).json({ message: 'Current password is incorrect.' });
-      }
-    } else {
-      // Authenticated flow: check currentPassword if it is not their first login
-      if (!user.isFirstLogin) {
-        if (!currentPassword) {
-          return res.status(400).json({ message: 'Current password is required.' });
-        }
-        const isMatch = await user.comparePassword(currentPassword);
-        if (!isMatch) {
-          return res.status(400).json({ message: 'Current password is incorrect.' });
-        }
-      }
+    }
+
+    console.log("Change password attempt");
+    console.log("User found:", !!user);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    if (!currentPassword) {
+      return res.status(400).json({ message: 'Current password is required.' });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    console.log("Password match:", isMatch);
+
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
     }
 
     // Validate new password complexity
@@ -490,9 +489,9 @@ router.post('/change-password', async (req, res) => {
     }
 
     // Prevent reuse of the last 3 passwords
-    const isCurrentMatch = await user.comparePassword(newPassword);
+    const isCurrentMatch = await bcrypt.compare(newPassword, user.password);
     if (isCurrentMatch) {
-      return res.status(400).json({ message: 'Cannot reuse any of your last 3 passwords.' });
+      return res.status(400).json({ message: 'New password same as old' });
     }
 
     let matchPrevious = false;
@@ -547,7 +546,7 @@ router.post('/change-password', async (req, res) => {
     // Send confirmation email
     await sendPasswordChangedEmail(user.email, user.name);
 
-    res.json({ message: 'Password updated successfully. Please log in with your new credentials.' });
+    res.json({ message: 'Password successfully changed' });
   } catch (error) {
     console.error('Change password error:', error);
     res.status(500).json({ message: 'Server error. Failed to change password.' });
