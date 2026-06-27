@@ -517,7 +517,14 @@ router.post('/change-password', async (req, res) => {
     user.password = newPassword;
     user.lastPasswordChange = new Date();
     user.isFirstLogin = false; // Turn off first-login flag
-    user.activeToken = undefined; // Force user to log in again with new password
+    
+    // Generate new activeToken to stay logged in
+    const token = jwt.sign(
+      { id: user._id, name: user.name, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    user.activeToken = token;
     user.refreshToken = undefined;
 
     await user.save();
@@ -538,14 +545,25 @@ router.post('/change-password', async (req, res) => {
       userRole: user.role,
       action: 'SESSION_INVALIDATION',
       success: true,
-      details: 'Invalidated all sessions on password change',
+      details: 'Refreshed active session on password change',
       ipAddress: req.ip
     });
 
     // Send confirmation email
     await sendPasswordChangedEmail(user.email, user.name);
 
-    res.json({ message: 'Password successfully changed' });
+    res.json({ 
+      message: 'Password successfully changed',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        lastPasswordChange: user.lastPasswordChange || user.createdAt,
+        isFirstLogin: user.isFirstLogin,
+      }
+    });
   } catch (err) {
     console.log("User found:", !!user);
     console.log("Current password match:", isMatch);

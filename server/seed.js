@@ -55,7 +55,8 @@ const seedDatabase = async () => {
       name: 'Principal Admin',
       email: 'abhilashbolla846@gmail.com',
       password: await bcrypt.hash('Demo@1234', 10),
-      role: 'principal'
+      role: 'principal',
+      isFirstLogin: false
     });
     await principalUser.save();
 
@@ -91,7 +92,8 @@ const seedDatabase = async () => {
         name: s.name,
         email: s.email,
         password: await bcrypt.hash('Demo@1234', 10),
-        role: 'staff'
+        role: 'staff',
+        isFirstLogin: true
       });
       const savedUser = await user.save();
 
@@ -169,7 +171,8 @@ const seedDatabase = async () => {
         name: st.name,
         email: st.email,
         password: await bcrypt.hash('Demo@1234', 10),
-        role: 'student'
+        role: 'student',
+        isFirstLogin: true
       });
       const savedUser = await user.save();
 

@@ -5,7 +5,7 @@ import api from '../utils/api';
 import { showToast } from '../components/Toast';
 
 const ChangePassword = () => {
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const [email, setEmail] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -57,9 +57,21 @@ const ChangePassword = () => {
     setIsLoading(true);
     try {
       const res = await api.post('/api/auth/change-password', { email, currentPassword, newPassword });
-      showToast(res.data?.message || 'Password changed successfully! Please log in.', 'success');
-      logout();
-      navigate('/login');
+      showToast(res.data?.message || 'Password successfully changed', 'success');
+      
+      if (res.data?.token && res.data?.user) {
+        login(res.data.token, res.data.user);
+        const ROLE_REDIRECTS = {
+          principal: '/principal/dashboard',
+          staff: '/staff/dashboard',
+          student: '/student/dashboard'
+        };
+        const redirectUrl = ROLE_REDIRECTS[res.data.user.role] || '/';
+        navigate(redirectUrl);
+      } else {
+        logout();
+        navigate('/login');
+      }
     } catch (err) {
       console.error('Password change error:', err);
       setError(err.response?.data?.message || 'Failed to change password. Please try again.');
