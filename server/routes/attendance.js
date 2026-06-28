@@ -129,7 +129,7 @@ router.get('/my', verifyToken, checkRole(['student']), async (req, res) => {
 
     const overallTotal = records.length;
     const overallPresent = records.filter((r) => r.status === 'present' || r.status === 'late').length;
-    const overallPercentage = overallTotal > 0 ? parseFloat((overallPresent / overallTotal * 100).toFixed(1)) : "Not yet recorded";
+    const overallPercentage = overallTotal > 0 ? parseFloat((overallPresent / overallTotal * 100).toFixed(1)) : "No attendance recorded yet";
 
     res.json({ subjects, overallPercentage, totalClasses: overallTotal });
   } catch (error) {

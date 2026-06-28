@@ -46,7 +46,7 @@ router.get('/my-info', verifyToken, checkRole(['student']), async (req, res) => 
 
     // 1. Calculate Attendance from Database
     const attendanceDocs = await Attendance.find({ studentId });
-    let overallAttendance = 'Not yet recorded'; // default if no records
+    let overallAttendance = 'No attendance recorded yet'; // default if no records
     let subjectAttendance = [];
     
     if (attendanceDocs.length > 0) {
@@ -85,15 +85,6 @@ router.get('/my-info', verifyToken, checkRole(['student']), async (req, res) => 
         total: m.totalMarks,
         date: m.date
       }));
-    } else {
-      // Fallback
-      recentMarks = [
-        { id: 1, subject: 'Mathematics', exam: 'Mid-Term', score: 87, total: 100, date: '2025-06-10' },
-        { id: 2, subject: 'Physics', exam: 'Mid-Term', score: 72, total: 100, date: '2025-06-11' },
-        { id: 3, subject: 'Chemistry', exam: 'Mid-Term', score: 68, total: 100, date: '2025-06-12' },
-        { id: 4, subject: 'English', exam: 'Mid-Term', score: 91, total: 100, date: '2025-06-13' },
-        { id: 5, subject: 'Comp. Science', exam: 'Mid-Term', score: 95, total: 100, date: '2025-06-14' },
-      ];
     }
 
     // 3. Upcoming Exams (mock/derived)

@@ -368,7 +368,7 @@ const StudentDashboard = () => {
     );
   }
 
-  const lastExam = data.recentMarks[0];
+  const lastExam = data.recentMarks && data.recentMarks.length > 0 ? data.recentMarks[0] : null;
   const feeLabel =
     data.feeStatus.status === 'paid' ? 'Paid' : data.feeStatus.status === 'partial' ? 'Partial' : 'Unpaid';
 
@@ -400,8 +400,8 @@ const StudentDashboard = () => {
             />
             <StatCard
               title="Last Exam Score"
-              value={`${lastExam.score}/${lastExam.total}`}
-              subtitle={`${lastExam.subject} · ${lastExam.exam}`}
+              value={lastExam ? `${lastExam.score}/${lastExam.total}` : 'No marks recorded yet'}
+              subtitle={lastExam ? `${lastExam.subject} · ${lastExam.exam}` : 'Marks not yet added'}
               icon="🏆"
               color="violet"
             />
@@ -518,28 +518,36 @@ const StudentDashboard = () => {
                 <h3 className="text-lg font-semibold text-white">Recent Marks</h3>
                 <p className="text-xs text-slate-500 mt-0.5">Your latest exam results</p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-800">
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Exam</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Score</th>
-                      <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Grade</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.recentMarks.map((mark) => (
-                      <tr key={mark.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
-                        <td className="px-6 py-3.5 text-sm text-white font-medium">{mark.subject}</td>
-                        <td className="px-6 py-3.5 text-sm text-slate-400">{mark.exam}</td>
-                        <td className="px-6 py-3.5 text-sm text-slate-300 font-mono">{mark.score}/{mark.total}</td>
-                        <td className="px-6 py-3.5"><ScoreBadge score={mark.score} /></td>
+              {data.recentMarks && data.recentMarks.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-slate-800">
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Subject</th>
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Exam</th>
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Score</th>
+                        <th className="text-left px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Grade</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {data.recentMarks.map((mark) => (
+                        <tr key={mark.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors">
+                          <td className="px-6 py-3.5 text-sm text-white font-medium">{mark.subject}</td>
+                          <td className="px-6 py-3.5 text-sm text-slate-400">{mark.exam}</td>
+                          <td className="px-6 py-3.5 text-sm text-slate-300 font-mono">{mark.score}/{mark.total}</td>
+                          <td className="px-6 py-3.5"><ScoreBadge score={mark.score} /></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 text-center text-slate-500">
+                  <div className="text-3xl mb-2">🏆</div>
+                  <p className="text-sm font-medium text-slate-400">No marks recorded yet</p>
+                  <p className="text-xs text-slate-650 mt-0.5">Your exam marks will show up here once published</p>
+                </div>
+              )}
             </div>
 
             {/* Upcoming exams */}

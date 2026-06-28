@@ -35,7 +35,7 @@ const StudentAttendance = () => {
       } catch (err) {
         // If no records yet, show empty state gracefully
         if (err.response?.status === 404) {
-          setData({ subjects: [], overallPercentage: "Not yet recorded", totalClasses: 0 });
+          setData({ subjects: [], overallPercentage: "No attendance recorded yet", totalClasses: 0 });
         } else {
           setError(err.response?.data?.message || 'Failed to load attendance.');
         }
