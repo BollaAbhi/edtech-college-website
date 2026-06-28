@@ -2,14 +2,15 @@ const express = require('express');
 const Attendance = require('../models/Attendance');
 const Student = require('../models/Student');
 const Staff = require('../models/Staff');
+const User = require('../models/User');
 const verifyToken = require('../middleware/verifyToken');
 const checkRole = require('../middleware/checkRole');
 
 const router = express.Router();
 
 // ─── POST /api/attendance ─────────────────────────────────────────────────────
-// Staff marks attendance for a class+subject on a given date
-router.post('/', verifyToken, checkRole(['staff']), async (req, res) => {
+// Mark / Edit bulk attendance
+router.post('/', verifyToken, checkRole(['staff', 'principal']), async (req, res) => {
   try {
     const { subject, class: cls, date, records } = req.body;
     // records: [{ studentId, status }]
@@ -18,18 +19,76 @@ router.post('/', verifyToken, checkRole(['staff']), async (req, res) => {
       return res.status(400).json({ message: 'subject, class, date and records are required.' });
     }
 
-    // Find the Staff doc linked to the logged-in user
-    const staffDoc = await Staff.findOne({ userId: req.user.id });
-    const staffId = staffDoc?._id || null;
+    let staffId = null;
+    let staffDoc = null;
 
-    // Upsert each student's record (prevent duplicates)
-    const ops = records.map(({ studentId, status }) => ({
-      updateOne: {
-        filter: { studentId, subject, date },
-        update: { $set: { studentId, staffId, subject, class: cls, date, status } },
-        upsert: true,
-      },
-    }));
+    if (req.user.role === 'staff') {
+      staffDoc = await Staff.findOne({ userId: req.user.id });
+      if (!staffDoc) {
+        return res.status(403).json({ message: 'Staff profile not found.' });
+      }
+      staffId = staffDoc._id;
+
+      // Enforce same-day check for staff
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (date !== todayStr) {
+        return res.status(403).json({ message: 'Staff can only mark or edit attendance for today.' });
+      }
+    }
+
+    // Fetch existing records for these student IDs, subject, and date
+    const studentIds = records.map(r => r.studentId);
+    const existingRecords = await Attendance.find({
+      studentId: { $in: studentIds },
+      subject,
+      date
+    });
+
+    // If staff, verify they own all existing records
+    if (req.user.role === 'staff') {
+      for (const rec of existingRecords) {
+        if (!rec.staffId || rec.staffId.toString() !== staffId.toString()) {
+          return res.status(403).json({ message: 'Cannot edit attendance marked by another staff member or principal.' });
+        }
+      }
+    }
+
+    const existingMap = {};
+    existingRecords.forEach(r => {
+      existingMap[r.studentId.toString()] = true;
+    });
+
+    const userName = req.user.name || (await User.findById(req.user.id))?.name || 'Unknown';
+
+    // Upsert each student's record
+    const ops = records.map(({ studentId, status }) => {
+      const updateData = {
+        studentId,
+        subject,
+        class: cls,
+        date,
+        status
+      };
+      
+      if (staffId) {
+        updateData.staffId = staffId;
+      }
+
+      // If the record already exists, it is an edit/update
+      if (existingMap[studentId.toString()]) {
+        updateData.lastEditedById = req.user.id;
+        updateData.lastEditedByName = userName;
+        updateData.lastEditedAt = new Date();
+      }
+
+      return {
+        updateOne: {
+          filter: { studentId, subject, date },
+          update: { $set: updateData },
+          upsert: true,
+        },
+      };
+    });
 
     await Attendance.bulkWrite(ops);
 
@@ -118,8 +177,8 @@ router.get('/report', verifyToken, checkRole(['principal']), async (req, res) =>
 });
 
 // ─── GET /api/attendance/classes ─────────────────────────────────────────────
-// Staff gets the list of students for a class to mark attendance
-router.get('/classes', verifyToken, checkRole(['staff']), async (req, res) => {
+// Staff/Principal gets the list of students for a class to mark attendance
+router.get('/classes', verifyToken, checkRole(['staff', 'principal']), async (req, res) => {
   try {
     const { class: cls, subject, date } = req.query;
     if (!cls) return res.status(400).json({ message: 'class is required.' });
@@ -150,6 +209,69 @@ router.get('/classes', verifyToken, checkRole(['staff']), async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to fetch class students.' });
+  }
+});
+
+// ─── PUT /api/attendance/:id ──────────────────────────────────────────────────
+// Edit a single attendance record
+router.put('/:id', verifyToken, checkRole(['principal', 'staff']), async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!status || !['present', 'absent', 'late'].includes(status)) {
+      return res.status(400).json({ message: 'Valid status is required.' });
+    }
+
+    const record = await Attendance.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: 'Attendance record not found.' });
+    }
+
+    if (req.user.role === 'staff') {
+      const staffDoc = await Staff.findOne({ userId: req.user.id });
+      if (!staffDoc) {
+        return res.status(403).json({ message: 'Staff profile not found.' });
+      }
+
+      // Check own-attendance constraint
+      if (!record.staffId || record.staffId.toString() !== staffDoc._id.toString()) {
+        return res.status(403).json({ message: 'Cannot edit attendance marked by another staff member.' });
+      }
+
+      // Check same-day constraint
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (record.date !== todayStr) {
+        return res.status(403).json({ message: 'Staff can only edit attendance for today.' });
+      }
+    }
+
+    // Update status and lastEdited metadata
+    record.status = status;
+    record.lastEditedById = req.user.id;
+    
+    const userDoc = await User.findById(req.user.id);
+    record.lastEditedByName = userDoc?.name || 'Unknown';
+    record.lastEditedAt = new Date();
+
+    await record.save();
+    res.json({ message: 'Attendance record updated successfully.', record });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to update attendance record.' });
+  }
+});
+
+// ─── DELETE /api/attendance/:id ───────────────────────────────────────────────
+// Delete a wrong attendance entry (principal only)
+router.delete('/:id', verifyToken, checkRole(['principal']), async (req, res) => {
+  try {
+    const record = await Attendance.findByIdAndDelete(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: 'Attendance record not found.' });
+    }
+    res.json({ message: 'Attendance record deleted successfully.' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Failed to delete attendance record.' });
   }
 });
 

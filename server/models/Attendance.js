@@ -30,6 +30,17 @@ const attendanceSchema = new mongoose.Schema(
       enum: ['present', 'absent', 'late'],
       default: 'absent',
     },
+    lastEditedById: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    lastEditedByName: {
+      type: String,
+      trim: true,
+    },
+    lastEditedAt: {
+      type: Date,
+    },
   },
   { timestamps: true }
 );

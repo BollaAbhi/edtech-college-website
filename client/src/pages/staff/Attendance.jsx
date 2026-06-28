@@ -145,6 +145,14 @@ const StaffAttendance = () => {
             </div>
           </div>
 
+          {/* Warning for non-today date */}
+          {selectedDate && selectedDate !== new Date().toISOString().split('T')[0] && (
+            <div className="mb-6 p-4 rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400 text-sm flex items-center gap-2">
+              <span>⚠️</span>
+              <span>Staff can only mark or edit attendance for today's date. Editing for other days is restricted.</span>
+            </div>
+          )}
+
           {/* Student attendance table */}
           {fetched && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
@@ -227,7 +235,7 @@ const StaffAttendance = () => {
               <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-end">
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || students.length === 0}
+                  disabled={submitting || students.length === 0 || selectedDate !== new Date().toISOString().split('T')[0]}
                   className="px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 rounded-xl shadow-lg shadow-cyan-500/20 transition-all disabled:opacity-50 flex items-center gap-2"
                 >
                   {submitting && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
