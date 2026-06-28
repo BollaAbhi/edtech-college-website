@@ -35,7 +35,7 @@ const StudentAttendance = () => {
       } catch (err) {
         // If no records yet, show empty state gracefully
         if (err.response?.status === 404) {
-          setData({ subjects: [], overallPercentage: 0, totalClasses: 0 });
+          setData({ subjects: [], overallPercentage: "Not yet recorded", totalClasses: 0 });
         } else {
           setError(err.response?.data?.message || 'Failed to load attendance.');
         }
@@ -71,8 +71,9 @@ const StudentAttendance = () => {
     );
   }
 
-  const overallColor = getTextColor(data.overallPercentage);
-  const overallBar = getBarColor(data.overallPercentage);
+  const overallColor = typeof data.overallPercentage === 'number' ? getTextColor(data.overallPercentage) : 'text-slate-400';
+  const overallBar = typeof data.overallPercentage === 'number' ? getBarColor(data.overallPercentage) : 'bg-slate-800';
+  const overallWidth = typeof data.overallPercentage === 'number' ? `${data.overallPercentage}%` : '0%';
 
   return (
     <div className="flex min-h-screen bg-slate-950">
@@ -89,15 +90,21 @@ const StudentAttendance = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
             <div className="sm:col-span-1 p-6 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/15 to-emerald-600/5">
               <p className="text-sm text-slate-400 mb-1">Overall Attendance</p>
-              <p className={`text-4xl font-bold tracking-tight ${overallColor}`}>{data.overallPercentage}%</p>
+              <p className={`text-4xl font-bold tracking-tight ${overallColor}`}>
+                {typeof data.overallPercentage === 'number' ? `${data.overallPercentage}%` : data.overallPercentage}
+              </p>
               <p className="text-xs text-slate-500 mt-2">{data.totalClasses} total classes recorded</p>
               <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className={`h-full rounded-full transition-all duration-700 ${overallBar}`} style={{ width: `${data.overallPercentage}%` }} />
+                <div className={`h-full rounded-full transition-all duration-700 ${overallBar}`} style={{ width: overallWidth }} />
               </div>
               <p className="text-xs mt-2">
-                {data.overallPercentage >= 75
-                  ? <span className="text-emerald-400">✓ Above minimum requirement</span>
-                  : <span className="text-red-400">⚠ Below 75% — attend more classes</span>}
+                {typeof data.overallPercentage === 'number' ? (
+                  data.overallPercentage >= 75
+                    ? <span className="text-emerald-400">✓ Above minimum requirement</span>
+                    : <span className="text-red-400">⚠ Below 75% — attend more classes</span>
+                ) : (
+                  <span className="text-slate-500">No attendance marked yet</span>
+                )}
               </p>
             </div>
 

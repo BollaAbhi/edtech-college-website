@@ -46,7 +46,7 @@ router.get('/my-info', verifyToken, checkRole(['student']), async (req, res) => 
 
     // 1. Calculate Attendance from Database
     const attendanceDocs = await Attendance.find({ studentId });
-    let overallAttendance = 100; // default if no records
+    let overallAttendance = 'Not yet recorded'; // default if no records
     let subjectAttendance = [];
     
     if (attendanceDocs.length > 0) {
@@ -71,17 +71,6 @@ router.get('/my-info', verifyToken, checkRole(['student']), async (req, res) => 
         total: counts.total,
         percentage: Math.round((counts.attended / counts.total) * 100)
       }));
-    } else {
-      // Fallback/Mock data if none exist
-      overallAttendance = 82.4;
-      subjectAttendance = [
-        { subject: 'Mathematics', attended: 38, total: 42, percentage: 90 },
-        { subject: 'Physics', attended: 32, total: 40, percentage: 80 },
-        { subject: 'Chemistry', attended: 28, total: 38, percentage: 74 },
-        { subject: 'English', attended: 35, total: 40, percentage: 88 },
-        { subject: 'Comp. Science', attended: 30, total: 36, percentage: 83 },
-        { subject: 'Hindi', attended: 26, total: 35, percentage: 74 },
-      ];
     }
 
     // 2. Fetch Marks from Database

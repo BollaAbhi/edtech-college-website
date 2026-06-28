@@ -393,8 +393,8 @@ const StudentDashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-8">
             <StatCard
               title="Overall Attendance"
-              value={`${data.overallAttendance}%`}
-              subtitle={data.overallAttendance >= 75 ? 'Above minimum requirement' : 'Below 75% — attend more classes'}
+              value={typeof data.overallAttendance === 'number' ? `${data.overallAttendance}%` : data.overallAttendance}
+              subtitle={typeof data.overallAttendance === 'number' ? (data.overallAttendance >= 75 ? 'Above minimum requirement' : 'Below 75% — attend more classes') : 'No attendance marked yet'}
               icon="📋"
               color="emerald"
             />
@@ -436,31 +436,39 @@ const StudentDashboard = () => {
                 </div>
               </div>
 
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.subjectAttendance} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                  <XAxis
-                    dataKey="subject"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#64748b', fontSize: 11 }}
-                    interval={0}
-                  />
-                  <YAxis
-                    domain={[0, 100]}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#64748b', fontSize: 12 }}
-                    tickFormatter={(v) => `${v}%`}
-                  />
-                  <Tooltip content={<AttendanceTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }} />
-                  <Bar dataKey="percentage" radius={[6, 6, 0, 0]} maxBarSize={48}>
-                    {data.subjectAttendance.map((entry, index) => (
-                      <Cell key={index} fill={getBarColor(entry.percentage)} fillOpacity={0.85} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+              {!data.subjectAttendance || data.subjectAttendance.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-[300px] border border-dashed border-slate-800 rounded-2xl bg-slate-950/20">
+                  <div className="text-4xl mb-3">📋</div>
+                  <p className="text-slate-400 text-sm font-medium">No attendance recorded yet</p>
+                  <p className="text-slate-600 text-xs mt-1">Your attendance will appear here once recorded by your teacher</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={data.subjectAttendance} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                    <XAxis
+                      dataKey="subject"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#64748b', fontSize: 11 }}
+                      interval={0}
+                    />
+                    <YAxis
+                      domain={[0, 100]}
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#64748b', fontSize: 12 }}
+                      tickFormatter={(v) => `${v}%`}
+                    />
+                    <Tooltip content={<AttendanceTooltip />} cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }} />
+                    <Bar dataKey="percentage" radius={[6, 6, 0, 0]} maxBarSize={48}>
+                      {data.subjectAttendance.map((entry, index) => (
+                        <Cell key={index} fill={getBarColor(entry.percentage)} fillOpacity={0.85} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
 
             {/* Notices panel */}
